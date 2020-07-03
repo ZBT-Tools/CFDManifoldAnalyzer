@@ -13,6 +13,9 @@ from scipy import signal
 import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
+from settings.file_names import *
+from settings.geometry import *
+
 
 def add_source(var, source, direction=1, tri_mtx=None):
     """
@@ -48,6 +51,7 @@ def add_source(var, source, direction=1, tri_mtx=None):
         raise ValueError('parameter direction must be either 1 or -1')
     return var
 
+
 def calc_pressure_drop(velocity, density, zeta, flow_direction=1):
     """
     Calculates the element-wise pressure drop in the channel
@@ -62,36 +66,19 @@ def calc_pressure_drop(velocity, density, zeta, flow_direction=1):
     b = (v2 ** 2.0 - v1 ** 2.0) * flow_direction
     return (a + b) * density * 0.5
 
-# specify directory and file names
-dir_name = r'D:\ZBT\Projekte\Manifold_Modell\Case_1'
-manifold_file_name = os.path.join(dir_name, 'manifold_data.npy')
-channel_file_name = os.path.join(dir_name, 'channel_data.npy')
-mass_flow_file_name = os.path.join(dir_name, 'mass_flows.npy')
 
-# flow direction in manifold along z-axis
-n_channels = 16
-n_manifolds = 2
-manifold_flow_direction_z = (-1, 1)
-channel_flow_direction_y = -1
-channel_dy = 5e-4
-manifold_dz = 5e-4
-manifold_height = (0, 0.24)
-manifold_distance = manifold_height[1] - manifold_height[0]
-manifold_diameter = 0.01
-channel_diameter = 0.005
-channel_distance = 0.02
-channel_0_z = 0.005
-z_min = -0.105
-z_max = 0.315
-x_min = 0.0
-x_max = 0.0
-y_min = 0.0 - 0.5 * manifold_diameter
-y_max = manifold_distance + 0.5 * manifold_diameter
+# specify directory and file names
+output_dir_name = os.path.join(dir_name, output_dir)
+manifold_file_name = os.path.join(output_dir_name,
+                                  manifold_data_file + '.npy')
+channel_file_name = os.path.join(output_dir_name,
+                                 channel_data_file + '.npy')
+mass_flow_file_name = os.path.join(output_dir_name,
+                                   mass_flow_data_file + '.npy')
+
 
 # load manifold data and assign coordinates and pressure values
 # to individual arrays; coordinates correspond to AVL FIRE case setup
-y_manifold, z_manifold, p_manifold = [], [], []
-
 manifold_data = np.load(manifold_file_name)
 y_manifold = np.asarray([manifold_data[3 * i] for i in range(n_manifolds)])
 z_manifold = np.asarray([manifold_data[3 * i + 1] for i in range(n_manifolds)])
@@ -99,13 +86,13 @@ p_manifold = np.asarray([manifold_data[3 * i + 2] for i in range(n_manifolds)])
 
 # calculate manifold junction coordinates
 junction_width = channel_diameter
-z_junction = np.asarray([channel_0_z + channel_distance * i
+z_junction = np.asarray([channel_0_z + channel_distance_z * i
                          for i in range(n_channels)])
 z_junction_in = z_junction - junction_width * 0.5
 z_junction_out = z_junction + junction_width * 0.5
 
 # make square function for better display of junction coordinates
-t = 2.0 * np.pi * 1.0 / channel_distance * (z_manifold[0] - z_junction_in[0])
+t = 2.0 * np.pi * 1.0 / channel_distance_z * (z_manifold[0] - z_junction_in[0])
 junction_square = 0.5 * signal.square(t, duty=0.25) + 0.5
 
 # interpolate pressure at manifold junctions
@@ -214,7 +201,7 @@ p_dyn[:] = p_manifold[1].min()
 print(p_manifold_function[1](z_junction_in[0]))
 pressure_direction = manifold_flow_direction_z[1]
 add_source(p_dyn, -dp_dyn, direction=pressure_direction)
-z_dyn = np.append(z_junction_in, z_junction_in[-1] + channel_distance)
+z_dyn = np.append(z_junction_in, z_junction_in[-1] + channel_distance_z)
 
 dpi = 200
 figsize = (6.4 * 2.0, 4.8 * 2.0)
@@ -222,13 +209,13 @@ fig = plt.figure(dpi=dpi, figsize=figsize)
 plt.plot(z_junction, zeta_junction[1], 'k.')
 plt.plot(z_junction, zeta_junction_idelchik[1], 'b.')
 plt.show()
-plt.savefig(os.path.join(dir_name, 'inlet_x_zeta_junction_manifold.png'))
+plt.savefig(os.path.join(output_dir_name, 'inlet_x_zeta_junction_manifold.png'))
 
 fig = plt.figure(dpi=dpi, figsize=figsize)
 plt.plot(velocity_ratio[1], zeta_junction_2[1], 'k.')
 plt.plot(velocity_ratio[1], zeta_junction_idelchik[1], 'b.')
 # plt.show()
-plt.savefig(os.path.join(dir_name, 'inlet_zeta_junction_manifold.png'))
+plt.savefig(os.path.join(output_dir_name, 'inlet_zeta_junction_manifold.png'))
 
 fig, ax1 = plt.subplots(dpi=dpi, figsize=figsize)
 z_plot = z_manifold[1]
@@ -245,7 +232,7 @@ ax1.grid(True, which='major')
 ax2.plot(z_manifold[1], junction_square)
 # plt.show()
 
-plt.savefig(os.path.join(dir_name, 'inlet_manifold_pressure.png'))
+plt.savefig(os.path.join(output_dir_name, 'inlet_manifold_pressure.png'))
 
 channel_data = np.load(channel_file_name)
 y_channel = np.asarray([channel_data[3 * i] for i in range(n_channels)])
