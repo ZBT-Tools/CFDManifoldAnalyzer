@@ -3,8 +3,8 @@ from scipy.interpolate import griddata
 import os
 import matplotlib.pyplot as plt
 import timeit
-from settings.file_names import *
-from settings.geometry import *
+from cfd_manifold_analyzer.settings.file_names import *
+from cfd_manifold_analyzer.settings.geometry import *
 
 
 start_time = timeit.default_timer()

@@ -7,14 +7,12 @@ Created on Wed May 13 16:50:17 2020
 
 import os
 import numpy as np
-import scipy as sp
 from scipy import interpolate
 from scipy import signal
 import matplotlib.pyplot as plt
-from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
-                               AutoMinorLocator)
-from settings.file_names import *
-from settings.geometry import *
+from matplotlib.ticker import (MultipleLocator)
+from cfd_manifold_analyzer.settings.file_names import *
+from cfd_manifold_analyzer.settings.geometry import *
 
 
 def add_source(var, source, direction=1, tri_mtx=None):

@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 import sys
-sys.path.append(os.path.abspath('../../'))
-import PEMFCModel.lib.channel as chl
+sys.path.append(os.path.abspath('../../../'))
+import PEMFCModel.channel as chl
+
 
 class Channels:
     """

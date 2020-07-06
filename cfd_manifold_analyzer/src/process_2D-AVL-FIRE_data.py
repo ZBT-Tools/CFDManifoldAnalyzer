@@ -1,11 +1,8 @@
 import numpy as np
-import scipy as sp
-from scipy.interpolate import griddata
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-import timeit
-import settings.file_names as path
+import cfd_manifold_analyzer.settings.file_names as path
 
 """
 Read AVL 2D data, extract mass flows and save as binary numpy data
