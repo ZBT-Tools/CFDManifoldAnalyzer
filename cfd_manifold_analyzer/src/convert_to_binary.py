@@ -1,4 +1,4 @@
-import settings.file_names as path
+import cfd_manifold_analyzer.settings.file_names as path
 import numpy as np
 import os
 
