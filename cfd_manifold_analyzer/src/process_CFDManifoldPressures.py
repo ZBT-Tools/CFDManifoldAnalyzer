@@ -251,7 +251,8 @@ def poly(x, coeffs):
 
 # chl_id = [0, 10, 20, 30, 39]
 
-y_channel_in = --manifold_height * 0.5
+
+y_channel_in = -manifold_height * 0.5
 p_channel_linear_in = \
     [poly(y_channel_in, lin_coeffs[i]) for i in range(geometry.n_channels)]
 y_channel_out = y_channel[-1] + manifold_height * 0.5

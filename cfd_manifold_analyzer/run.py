@@ -1,5 +1,8 @@
 import sys
 import os
-sys.path.append(os.path.abspath('../../PEMFCModel'))
 import pemfc
-channel = pemfc.channel.Channel()
+import cfd_manifold_analyzer.src.convert_to_binary
+import cfd_manifold_analyzer.src.process_3d_avl_fire_cut
+
+
+# channel = pemfc.channel.Channel()
