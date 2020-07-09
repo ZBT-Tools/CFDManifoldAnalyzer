@@ -2,15 +2,20 @@ import numpy as np
 from scipy.interpolate import griddata
 import os
 import matplotlib.pyplot as plt
+import matplotlib
 import timeit
 from ..settings import file_names
 from ..settings import geometry as geom
+
+matplotlib.use('TkAgg')
 
 
 class CFDDataChannel:
     def __init__(self, diameter, length, start_vector, direction_vector, dx):
         self.diameter = diameter
         self.length = length
+        start_vector = np.asarray(start_vector)
+        direction_vector = np.asarray(direction_vector)
         if np.ndim(np.asarray(start_vector)) != 3:
             raise ValueError('start_vector must have dimension of 3')
         self.start_vector = start_vector
@@ -23,13 +28,15 @@ class CFDDataChannel:
         except FloatingPointError:
             raise FloatingPointError('direction vector must not be zero')
         self.dx = dx
+        self.nx = int(np.round(self.length / self.dx)) + 1
+        self.pressure = np.zeros(self.nx)
 
     def create_coords(self):
-        nodes = int(np.round(self.length / self.dx)) + 1
         length_vector = self.length * self.direction_vector
         end_vector = self.start_vector + length_vector
         coords = \
-            np.asarray([np.linspace(self.start_vector[i], end_vector[i], nodes)
+            np.asarray([np.linspace(self.start_vector[i], end_vector[i],
+                                    self.nx)
                         for i in range(len(end_vector))])
         return coords
 
@@ -42,27 +49,41 @@ class CFDManifoldProcessor3D:
         if not os.path.isdir(output_dir):
             os.makedirs(output_dir)
 
-        # assign geometry variables
+        # create channel data objects
         self.channels = []
         for i in range(geom.n_channels):
-            start_vector = (0.0,
+            start_vector = \
+                np.asarray((0.0,
                             geom.manifold_y[0] + 0.5 * geom.manifold_diameter,
-                            geom.channel_0_z + i * geom.channel_distance_z)
-            direction_vector = (0.0, 1.0, 0.0)
+                            geom.channel_0_z + i * geom.channel_distance_z))
+            direction_vector = np.asarray((0.0, 1.0, 0.0))
             self.channels.append(CFDDataChannel(geom.channel_diameter,
                                                 geom.channel_length,
                                                 start_vector, direction_vector,
                                                 geom.channel_dy))
-        self.n_channels = geom.n_channels
-        self.n_manifolds = geom.n_manifolds
-        self.channel_diameter = geom.channel_diameter
-        self.channel_length = geom.channel_length
-        self.channel_distance = geom.channel_distance_z
-        self.channel_dy = geom.channel_dy
-        self.channel_0_z = geom.channel_0_z
-        self.manifold_y = geom.manifold_y
-        self.manifold_dz = geom.manifold_dz
-        self.bounding_box = geom.bounding_box
+
+        # create manifold data objects
+        self.manifolds = []
+        for i in range(geom.n_manifolds):
+            start_vector = \
+                np.asarray((0.0, geom.manifold_y[i], geom.bounding_box[-1, 0]))
+            direction_vector = np.asarray((0.0, 0.0, 1.0))
+            self.manifolds.append(CFDDataChannel(geom.manifold_diameter,
+                                                 geom.manifold_length,
+                                                 start_vector, direction_vector,
+                                                 geom.manifold_dz))
+        self.n_channels = len(self.channels)
+        self.n_manifolds = len(self.manifolds)
+        # self.n_channels = geom.n_channels
+        # self.n_manifolds = geom.n_manifolds
+        # self.channel_diameter = geom.channel_diameter
+        # self.channel_length = geom.channel_length
+        # self.channel_distance = geom.channel_distance_z
+        # self.channel_dy = geom.channel_dy
+        # self.channel_0_z = geom.channel_0_z
+        # self.manifold_y = geom.manifold_y
+        # self.manifold_dz = geom.manifold_dz
+        # self.bounding_box = geom.bounding_box
 
     def load_data(self):
         if not file_name.split('.')[-1] == 'npy':
@@ -89,49 +110,87 @@ class CFDManifoldProcessor3D:
         return combined_array, coord_array, value_array
 
     def create_channel_coords(self):
-        # create channel centerline coordinates
-        ny_channel = \
-            int(np.round(self.channel_length / self.channel_dy))
-        channel_z_positions = \
-            np.asarray([self.channel_0_z + i * self.channel_distance
-                        for i in range(self.n_channels)])
-        channel_z = np.zeros((ny_channel, self.n_channels))
-        channel_z[:, :] = channel_z_positions
-        channel_y = \
-            np.linspace(self.manifold_y[0] + geom.manifold_diameter * 0.5,
-                        self.manifold_y[1] - geom.manifold_diameter * 0.5,
-                        ny_channel)
-        channel_coords = np.zeros((geom.n_channels, ny_channel, 3))
-        # set channel y-coordinates
-        channel_coords[:, :, 1] = channel_y
-        # set channel z-coordinates
-        channel_coords[:, :, 2] = channel_z.transpose()
-        return channel_coords
+        return np.asarray([channel.create_coords().transpose()
+                           for channel in self.channels])
 
     def create_manifold_coords(self):
-        # create manifold centerline coordinates
-        nz_manifold = \
-            int(np.round(
-                (self.bounding_box[-1, 1] - self.bounding_box[-1, 0]) /
-                 self.manifold_dz)) + 1
-        manifold_z = np.linspace(geom.z_ext[0], geom.z_ext[1], nz_manifold)
-        manifold_coords = np.zeros((geom.n_manifolds, nz_manifold, 2))
+        return np.asarray([manifold.create_coords().transpose()
+                           for manifold in self.manifolds])
 
-        manifold_coords[0, :, 0] = geom.manifold_y[0]
-        manifold_coords[1, :, 0] = geom.manifold_y[1]
-        manifold_coords[0, :, 1] = manifold_z
-        manifold_coords[1, :, 1] = manifold_z
+    #     # create channel centerline coordinates
+    #     ny_channel = \
+    #         int(np.round(self.channel_length / self.channel_dy))
+    #     channel_z_positions = \
+    #         np.asarray([self.channel_0_z + i * self.channel_distance
+    #                     for i in range(self.n_channels)])
+    #     channel_z = np.zeros((ny_channel, self.n_channels))
+    #     channel_z[:, :] = channel_z_positions
+    #     channel_y = \
+    #         np.linspace(self.manifold_y[0] + geom.manifold_diameter * 0.5,
+    #                     self.manifold_y[1] - geom.manifold_diameter * 0.5,
+    #                     ny_channel)
+    #     channel_coords = np.zeros((geom.n_channels, ny_channel, 3))
+    #     # set channel y-coordinates
+    #     channel_coords[:, :, 1] = channel_y
+    #     # set channel z-coordinates
+    #     channel_coords[:, :, 2] = channel_z.transpose()
+    #     return channel_coords
+    #
+    # def create_manifold_coords(self):
+    #     # create manifold centerline coordinates
+    #     nz_manifold = \
+    #         int(np.round(
+    #             (self.bounding_box[-1, 1] - self.bounding_box[-1, 0]) /
+    #              self.manifold_dz)) + 1
+    #     manifold_z = np.linspace(geom.z_ext[0], geom.z_ext[1], nz_manifold)
+    #     manifold_coords = np.zeros((geom.n_manifolds, nz_manifold, 2))
+    #
+    #     manifold_coords[0, :, 0] = geom.manifold_y[0]
+    #     manifold_coords[1, :, 0] = geom.manifold_y[1]
+    #     manifold_coords[0, :, 1] = manifold_z
+    #     manifold_coords[1, :, 1] = manifold_z
 
     def interpolate_data(self):
-
+        channel_coords = self.create_channel_coords()
         # combine channel coordinates into one array for efficient interpolation
         channel_coords_combined = np.asarray([item for item in channel_coords])
         channel_coords_combined = \
             channel_coords_combined.reshape(-1,
                                             channel_coords_combined.shape[-1])
+        manifold_coords = self.create_manifold_coords()
+        # combine manifold coordinates into one array for efficient interpolation
+        manifold_coords_combined = \
+            np.asarray([item for item in manifold_coords])
+        manifold_coords_combined = \
+            manifold_coords_combined.reshape(-1,
+                                             manifold_coords_combined.shape[-1])
+
+        # combine all coordinates into one array for efficient interpolation
+        coords_combined = np.concatenate((channel_coords_combined,
+                                          manifold_coords_combined), axis=0)
+        # get data coordinates and values from raw data file
+        combined_array, data_points, data_values = self.data_to_array()
+        # interpolate centerline (manifold and channels) pressure values
+        # channel_pressure = np.zeros((n_channels, ny_channel))
+        # for i in range(n_channels):
+        pressure_combined = griddata(data_points, data_values, coords_combined)
+        # split into separate channel and manifold pressure arrays
+        channel_pressure_combined = \
+            pressure_combined[:self.n_channels * ny_channel]
+        channel_pressure = \
+            channel_pressure_combined.reshape(self.n_channels, ny_channel)
+        manifold_pressure_combined = \
+            pressure_combined[-self.n_manifolds * nz_manifold:]
+        manifold_pressure = \
+            manifold_pressure_combined.reshape(self.n_manifolds, nz_manifold)
+        # assign values to channel data
+        for i, channel in enumerate(self.channels):
+            channel.pressure[:] = channel_pressure[i]
+        for i, manifold in enumerate(self.manifolds):
+            manifold.pressure[:] = manifold_pressure[i]
+
 
 start_time = timeit.default_timer()
-
 # create output folder
 full_output_dir = os.path.join(file_names.dir_name, file_names.output_dir)
 if not os.path.isdir(full_output_dir):
@@ -224,6 +283,7 @@ manifold_pressure = \
 
 fig = plt.figure()
 plt.plot(channel_coords[5, :, 0], channel_pressure[5, :])
+plt.show()
 print(timeit.default_timer() - start_time)
 
 # write channel data to files
