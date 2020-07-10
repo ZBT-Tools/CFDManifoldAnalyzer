@@ -11,19 +11,20 @@ matplotlib.use('TkAgg')
 
 
 class CFDDataChannel:
-    def __init__(self, diameter, length, start_vector, direction_vector, dx):
+    def __init__(self, diameter, length, start_vector, direction_vector, dx,
+                 value_names=('pressure',)):
         self.dims = 3
         self.diameter = diameter
         self.length = length
         start_vector = np.asarray(start_vector)
         direction_vector = np.asarray(direction_vector)
-        if np.ndim(np.asarray(start_vector)) != self.dims:
+        if np.asarray(start_vector).shape[0] != self.dims:
             raise ValueError(
                 'start_vector must be of size {}'.format(self.dims))
         self.start_vector = start_vector
-        if np.ndim(np.asarray(direction_vector)) != self.dims:
+        if np.asarray(direction_vector).shape[0] != self.dims:
             raise ValueError(
-                'start_vector must be of size {}'.format(self.dims))
+                'direction_vector must be of size {}'.format(self.dims))
         # normalize direction vector
         try:
             self.direction_vector = \
@@ -32,7 +33,9 @@ class CFDDataChannel:
             raise FloatingPointError('direction vector must not be zero')
         self.dx = dx
         self.nx = int(np.round(self.length / self.dx)) + 1
-        self.pressure = np.zeros(self.nx)
+        self.data = {key: np.zeros(self.nx) for key in value_names}
+        for name in value_names:
+            setattr(self, name, np.zeros(self.nx))
         self.x = np.zeros(self.nx)
         self.coords = np.zeros((self.dims, self.nx))
         self.cord_length = np.linspace(0.0, self.length, self.nx)
@@ -44,19 +47,17 @@ class CFDDataChannel:
             np.asarray([np.linspace(self.start_vector[i], end_vector[i],
                                     self.nx)
                         for i in range(len(end_vector))])
-        self.coords[:] = np.dot(coords, self.direction_vector)
+        self.coords[:] = coords
         return coords
 
-    def plot(self, ax=None, xaxis=None, yaxis='pressure'):
+    def plot(self, xaxis=None, yaxis='pressure', ax=None):
         if ax is None:
-            fig, ax = plt.figure()
+            fig, ax = plt.subplots()
         if xaxis is None:
             xaxis = self.cord_length
-        if yaxis == 'pressure':
-            yaxis = self.pressure
         else:
             raise ValueError('data not found')
-        ax.plot(self.coords[xaxis], yaxis)
+        ax.plot(xaxis, self.data[yaxis])
         plt.show()
 
 
@@ -67,6 +68,8 @@ class CFDManifoldProcessor3D:
         # create output folder
         if not os.path.isdir(output_dir):
             os.makedirs(output_dir)
+
+        self.collections = ('channel', 'manifold')
 
         # create channel data objects
         self.channels = []
@@ -93,16 +96,6 @@ class CFDManifoldProcessor3D:
                                                  geom.manifold_dz))
         self.n_channels = len(self.channels)
         self.n_manifolds = len(self.manifolds)
-        # self.n_channels = geom.n_channels
-        # self.n_manifolds = geom.n_manifolds
-        # self.channel_diameter = geom.channel_diameter
-        # self.channel_length = geom.channel_length
-        # self.channel_distance = geom.channel_distance_z
-        # self.channel_dy = geom.channel_dy
-        # self.channel_0_z = geom.channel_0_z
-        # self.manifold_y = geom.manifold_y
-        # self.manifold_dz = geom.manifold_dz
-        # self.bounding_box = geom.bounding_box
 
     def load_data(self):
         if not self.file_path.split('.')[-1] == 'npy':
@@ -136,7 +129,7 @@ class CFDManifoldProcessor3D:
         return np.asarray([manifold.create_coords().transpose()
                            for manifold in self.manifolds])
 
-    def interpolate_data(self):
+    def interpolate_data(self, data_name='pressure'):
         channel_coords = self.create_channel_coords()
         # combine channel coordinates into one array for efficient interpolation
         channel_coords_combined = np.asarray([item for item in channel_coords])
@@ -155,11 +148,21 @@ class CFDManifoldProcessor3D:
         coords_combined = np.concatenate((channel_coords_combined,
                                           manifold_coords_combined), axis=0)
         # get data coordinates and values from raw data file
-        combined_array, data_points, data_values = self.data_to_array()
+        combined_array, data_coords, data_values = self.data_to_array()
+        # strip zero dimension
+        data_coords_transposed = data_coords.transpose()
+        non_zero_axis = []
+        for i in range(len(data_coords_transposed)):
+            if np.var(data_coords_transposed[i]) > 1e-8:
+                non_zero_axis.append(i)
+        stripped_data_coords = np.take(data_coords, non_zero_axis, axis=-1)
+        stripped_coords_combined = \
+            np.take(coords_combined, non_zero_axis, axis=-1)
         # interpolate centerline (manifold and channels) pressure values
         # channel_pressure = np.zeros((n_channels, ny_channel))
         # for i in range(n_channels):
-        pressure_combined = griddata(data_points, data_values, coords_combined)
+        pressure_combined = griddata(stripped_data_coords, data_values,
+                                     stripped_coords_combined)
         # split into separate channel and manifold pressure arrays
         nx_channel = self.channels[0].nx
         channel_pressure_combined = \
@@ -173,6 +176,34 @@ class CFDManifoldProcessor3D:
             manifold_pressure_combined.reshape(self.n_manifolds, nx_manifold)
         # assign values to channel data
         for i, channel in enumerate(self.channels):
-            channel.pressure[:] = channel_pressure[i]
+            channel.data[data_name] = channel_pressure[i]
         for i, manifold in enumerate(self.manifolds):
-            manifold.pressure[:] = manifold_pressure[i]
+            manifold.data[data_name] = manifold_pressure[i]
+
+    def save_collection(self, collection_name):
+        if collection_name == 'channel':
+            collection = self.channels
+        elif collection_name == 'manifold':
+            collection = self.manifolds
+        else:
+            raise ValueError('collection with name {}'
+                             ' not available'.format(collection_name))
+        collection_data = []
+        for i, item in enumerate(collection):
+            for j in range(item.dims):
+                collection_data.append(item.coords[j])
+            for j in item.data:
+                collection_data.append(j)
+        collection_data = np.asarray(collection_data)
+        data_name = collection_name + '_data'
+        np.save(os.path.join(self.output_dir, data_name), collection_data)
+
+    def save(self):
+        for collection in self.collections:
+            self.save_collection(collection)
+
+
+
+
+
+

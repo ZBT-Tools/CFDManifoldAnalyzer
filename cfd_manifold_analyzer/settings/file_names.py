@@ -6,14 +6,14 @@ Paths to AVL FIRE output data: directory, 3D cut file, 2D results file
 """
 
 # AVL FIRE results directory
-dir_name = r'C:\Users\lukas\PycharmProjects\CFDManifoldAnalyzer\data'
+dir_name = r'C:\Users\feierabend\PycharmProjects\CFDManifoldAnalyzer\data'
 
 # 3D cut file name
 # Each row of file has three vertices with their respective pressure values:
 # (without header and values separated by single whitespace character)
 # x1 y1 z1 x2 y2 z2 x3 y3 z3 p1 p2 p3
 avl_fire_file_3d = \
-    'Stack_Ratio2_Re3000_p10_IT_1179_Flow_RelativePressure_Pa.dat'
+    'Stack_Ratio2_Re3000_p10_IT_1179_Flow_RelativePressure_Pa.npy'
 
 # 2D results file name
 # Each data row includes all 2D results for the respective iteration; first two
