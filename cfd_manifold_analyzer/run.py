@@ -9,7 +9,7 @@ import cfd_manifold_analyzer.src.cfd_data_processor as cfd_proc
 
 file_path = os.path.join(file_names.dir_name, file_names.avl_fire_file_3d)
 output_dir = os.path.join(file_names.dir_name, file_names.output_dir)
-cfd_data = cfd_proc.CFDManifoldProcessor3D(file_path, output_dir)
+cfd_data = cfd_proc.CFDManifoldProcessor(file_path, output_dir)
 cfd_data.interpolate_data()
 cfd_data.channels[0].plot()
 cfd_data.save()

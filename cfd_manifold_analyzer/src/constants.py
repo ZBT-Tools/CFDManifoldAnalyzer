@@ -1,10 +1,2 @@
 # numerics
 SMALL = 1e-8
-
-# plotting
-FONT_SIZE = 14
-NUMBER_SIZE = 14
-MARKER_SIZE = 5.0
-LINE_WIDTH = 1.0
-FIG_DPI = 150
-FIG_SIZE = (6.4, 4.8)

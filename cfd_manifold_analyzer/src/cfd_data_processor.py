@@ -2,19 +2,17 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata
 import os
-import matplotlib.pyplot as plt
-import matplotlib
 import timeit
 from ..settings import file_names
 from ..settings import geometry as geom
+from .output import OutputObject
 from . import constants
 
-matplotlib.use('TkAgg')
 
-
-class CFDDataChannel:
+class CFDDataChannel(OutputObject):
     def __init__(self, diameter, length, start_vector, direction_vector, dx,
-                 value_names=('pressure',)):
+                 value_names=('pressure',), name=None):
+        super().__init__(name)
         self.dims = 3
         self.diameter = diameter
         self.length = length
@@ -53,24 +51,18 @@ class CFDDataChannel:
         self.coords[:] = coords
         return coords
 
-    def plot(self, xaxis=None, yaxis='pressure',
-             xlabel='No xlabel argument given',
-             ylabel='No ylabel argument supplied',
-             ax=None):
-        if ax is None:
-            fig, ax = plt.subplots()
-        if xaxis is None:
-            xaxis = self.cord_length
-        else:
-            raise ValueError('data not found')
-        ax.plot(xaxis, self.data[yaxis])
-        ax.set_xlabel('Channels [-]')
-        ax.set_ylabel('Normalized Mass Flows [-]')
-        plt.show()
+    def plot(self, x=None, y=None, xlabel='Cord Length [-]',
+             ylabel='CFD Data [-]', colormap=None, ax=None, **kwargs):
+        if x is None:
+            x = self.cord_length
+        if y is None:
+            y = self.data[0]
+        return super().plot(x, y, xlabel=xlabel, ylabel=ylabel)
 
 
-class CFDMassFlowProcessor:
-    def __init__(self, file_path, output_dir):
+class CFDMassFlowProcessor(OutputObject):
+    def __init__(self, file_path, output_dir, name=None):
+        super().__init__(name)
         self.file_path = file_path
         self.output_dir = output_dir
         self.mass_flow_name = file_names.mass_flow_name
@@ -83,7 +75,7 @@ class CFDMassFlowProcessor:
         return pd.read_csv(os.path.join(self.file_path),
                            sep='\t', header=[0, 1])
 
-    def get_mass_flows(self):
+    def process(self):
         cfd_data_2d = self.load_2d_data()
         self.mass_flows = \
             cfd_data_2d[self.mass_flow_name].iloc[-2].to_numpy()
@@ -92,21 +84,22 @@ class CFDMassFlowProcessor:
             cfd_data_2d[self.total_mass_flow_name].iloc[-2][0]
         return self.mass_flows
 
-    def plot(self, ax=None):
-        if ax is None:
-            fig, ax = plt.subplots()
-        mean_mass_flow = self.mass_flows.mean()
-        ax.plot(self.n_channels, self.mass_flows / mean_mass_flow)
-        ax.set_xlabel('Channels [-]')
-        ax.set_ylabel('Normalized Mass Flows [-]')
-        plt.tight_layout()
-        plt.show()
-        np.save(os.path.join(full_output_dir, path.mass_flow_data_file),
-                channel_mass_flows)
+    def save(self, name='mass_flow_data', ascii=False):
+        if ascii:
+            np.savetxt(os.path.join(self.output_dir, name), self.mass_flows)
+        else:
+            np.save(os.path.join(self.output_dir, name), self.mass_flows)
+
+    def plot(self, xlabel='Channels [-]', ylabel='Normalized Mass Flow [-]',
+             colormap=None, ax=None, **kwargs):
+        x = np.array([i for i in range(self.n_channels)])
+        y = self.mass_flows / np.mean(self.mass_flows)
+        return super().plot(x, y, xlabel=xlabel, ylabel=ylabel)
 
 
-class CFDManifoldProcessor3D:
-    def __init__(self, file_path_3d, file_path_2d, output_dir):
+class CFDManifoldProcessor(OutputObject):
+    def __init__(self, file_path_3d, file_path_2d, output_dir, name=None):
+        super().__init__(name)
         self.file_path_3d = file_path_3d
         self.file_path_2d = file_path_2d
         self.output_dir = output_dir
@@ -139,8 +132,15 @@ class CFDManifoldProcessor3D:
                                                  geom.manifold_length,
                                                  start_vector, direction_vector,
                                                  geom.manifold_dz))
+        # initialize mass flow data
+        self.mass_flows = CFDMassFlowProcessor(file_names.avl_fire_file_2d,
+                                               self.output_dir)
         self.n_channels = len(self.channels)
         self.n_manifolds = len(self.manifolds)
+
+    def process(self):
+        self.interpolate_data()
+
 
     def load_3d_data(self):
         file_ext = self.file_path_3d.split('.')[-1]
@@ -153,8 +153,8 @@ class CFDManifoldProcessor3D:
 
     def data_to_array(self):
         raw_data = self.load_3d_data()
-        # create coordinate and pressure arrays corresponding to coordinate system
-        # configuration in AVL FIRE case setup
+        # create coordinate and pressure arrays corresponding to coordinate
+        # system configuration in AVL FIRE case setup
         x, y, z, p = [], [], [], []
         for i in range(3):
             x.append(raw_data[3 * i])
@@ -186,7 +186,8 @@ class CFDManifoldProcessor3D:
             channel_coords_combined.reshape(-1,
                                             channel_coords_combined.shape[-1])
         manifold_coords = self.create_manifold_coords()
-        # combine manifold coordinates into one array for efficient interpolation
+        # combine manifold coordinates into one array
+        # for efficient interpolation
         manifold_coords_combined = \
             np.asarray([item for item in manifold_coords])
         manifold_coords_combined = \
@@ -250,6 +251,22 @@ class CFDManifoldProcessor3D:
     def save(self):
         for collection in self.collections:
             self.save_collection(collection)
+
+    def plot(self, **kwargs):
+        # plot channel pressures
+        x = self.channels[0].cord_length
+        y = [channel.data['pressure'] for channel in self.channels]
+        file_path = os.path.join(self.output_dir, 'channel_pressure.png')
+        self.create_figure(file_path, x, y, xlabels='Channels [-]',
+                           ylabels='Pressure [Pa]')
+
+
+
+
+
+
+
+
 
 
 
