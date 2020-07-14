@@ -6,7 +6,7 @@ Paths to AVL FIRE output data: directory, 3D cut file, 2D results file
 """
 
 # AVL FIRE results directory
-dir_name = r'C:\Users\feierabend\PycharmProjects\CFDManifoldAnalyzer\data'
+dir_name = r'C:\Users\lukas\PycharmProjects\CFDManifoldAnalyzer\data'
 
 # 3D cut file name
 # Each row of file has three vertices with their respective pressure values:
@@ -29,4 +29,3 @@ output_dir = 'Case_1'
 mass_flow_data_file = 'mass_flows'
 channel_data_file = 'channel_data'
 manifold_data_file = 'manifold_data'
-

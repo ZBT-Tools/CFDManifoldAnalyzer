@@ -32,7 +32,7 @@ class OutputObject:
     _instances = set()
 
     def __init__(self, name):
-        assert isinstance(name, str)
+        # assert isinstance(name, str)
         self._name = name
         self.active = True
 
@@ -191,7 +191,7 @@ class OutputObject:
         ax.set_yscale(kwargs.get('yscale', 'linear'))
         return ax
 
-    def plot(self, x, y, ax=None, colormap=None, **kwargs):
+    def plot_lines(self, x, y, ax=None, colormap=None, **kwargs):
         x = np.asarray(x)
         y = np.asarray(y)
         ny = len(y)
@@ -207,11 +207,11 @@ class OutputObject:
                                  'equal to outer dimension of y')
         if y.ndim == 1:
             ax.plot(x, y, marker=kwargs.get('marker', '.'),
-                    markersize=kwargs.get('markersize', MARKER_SIZE),
-                    fillstyle=kwargs.get('fillstyle', 'full'),
-                    linewidth=kwargs.get('linewidth', LINE_WIDTH),
-                    linestyle=kwargs.get('linestyle', '-'),
-                    color=kwargs.get('color', 'k'))
+                          markersize=kwargs.get('markersize', MARKER_SIZE),
+                          fillstyle=kwargs.get('fillstyle', 'full'),
+                          linewidth=kwargs.get('linewidth', LINE_WIDTH),
+                          linestyle=kwargs.get('linestyle', '-'),
+                          color=kwargs.get('color', 'k'))
         else:
             if colormap is not None:
                 cmap = plt.get_cmap(colormap)
@@ -287,8 +287,10 @@ class OutputObject:
 
         for i in range(nplots):
             ax = fig.add_subplot(rows, cols, i+1)
-            ax = self.plot(x_array[i], y_array[i], ax=ax,
-                           xlabel=xlabels[i], ylabel=ylabels[i], **kwargs)
+            xarray = x_array[i]
+            yarray = y_array[i]
+            ax = self.plot_lines(x_array[i], y_array[i], ax=ax,
+                                 xlabel=xlabels[i], ylabel=ylabels[i], **kwargs)
             if titles is not None:
                 titles = check_dims(titles)
                 ax.set_title(titles[i], fontsize=fontsize)

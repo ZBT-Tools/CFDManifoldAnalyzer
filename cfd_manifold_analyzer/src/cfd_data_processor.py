@@ -52,12 +52,12 @@ class CFDDataChannel(OutputObject):
         return coords
 
     def plot(self, x=None, y=None, xlabel='Cord Length [-]',
-             ylabel='CFD Data [-]', colormap=None, ax=None, **kwargs):
+                   ylabel='CFD Data [-]', colormap=None, ax=None, **kwargs):
         if x is None:
             x = self.cord_length
         if y is None:
             y = self.data[0]
-        return super().plot(x, y, xlabel=xlabel, ylabel=ylabel)
+        return super().plot_lines(x, y, xlabel=xlabel, ylabel=ylabel)
 
 
 class CFDMassFlowProcessor(OutputObject):
@@ -72,8 +72,7 @@ class CFDMassFlowProcessor(OutputObject):
         self.total_mass_flow = 0.0
 
     def load_2d_data(self):
-        return pd.read_csv(os.path.join(self.file_path),
-                           sep='\t', header=[0, 1])
+        return pd.read_csv(self.file_path, sep='\t', header=[0, 1])
 
     def process(self):
         cfd_data_2d = self.load_2d_data()
@@ -91,17 +90,18 @@ class CFDMassFlowProcessor(OutputObject):
             np.save(os.path.join(self.output_dir, name), self.mass_flows)
 
     def plot(self, xlabel='Channels [-]', ylabel='Normalized Mass Flow [-]',
-             colormap=None, ax=None, **kwargs):
+                   colormap=None, ax=None, **kwargs):
         x = np.array([i for i in range(self.n_channels)])
         y = self.mass_flows / np.mean(self.mass_flows)
-        return super().plot(x, y, xlabel=xlabel, ylabel=ylabel)
+        return super().plot_lines(x, y, xlabel=xlabel, ylabel=ylabel)
 
 
 class CFDManifoldProcessor(OutputObject):
-    def __init__(self, file_path_3d, file_path_2d, output_dir, name=None):
+    def __init__(self, pressure_file_path, mass_flow_file_path,
+                 output_dir, name=None):
         super().__init__(name)
-        self.file_path_3d = file_path_3d
-        self.file_path_2d = file_path_2d
+        self.pressure_file_path = pressure_file_path
+        self.mass_flow_file_path = mass_flow_file_path
         self.output_dir = output_dir
         # create output folder
         if not os.path.isdir(output_dir):
@@ -133,21 +133,21 @@ class CFDManifoldProcessor(OutputObject):
                                                  start_vector, direction_vector,
                                                  geom.manifold_dz))
         # initialize mass flow data
-        self.mass_flows = CFDMassFlowProcessor(file_names.avl_fire_file_2d,
-                                               self.output_dir)
+        self.mass_flow_data = CFDMassFlowProcessor(self.mass_flow_file_path,
+                                                   self.output_dir)
         self.n_channels = len(self.channels)
         self.n_manifolds = len(self.manifolds)
 
     def process(self):
         self.interpolate_data()
-
+        self.mass_flow_data.process()
 
     def load_3d_data(self):
-        file_ext = self.file_path_3d.split('.')[-1]
+        file_ext = self.pressure_file_path.split('.')[-1]
         if file_ext == 'npy':
-            return np.load(self.file_path_3d).transpose()
+            return np.load(self.pressure_file_path).transpose()
         elif file_ext == 'dat':
-            return np.loadtxt(self.file_path_3d).transpose()
+            return np.loadtxt(self.pressure_file_path).transpose()
         else:
             raise IOError('file must be ascii (.dat) or binary (.npy)')
 
@@ -257,19 +257,22 @@ class CFDManifoldProcessor(OutputObject):
         x = self.channels[0].cord_length
         y = [channel.data['pressure'] for channel in self.channels]
         file_path = os.path.join(self.output_dir, 'channel_pressure.png')
-        self.create_figure(file_path, x, y, xlabels='Channels [-]',
+        self.create_figure(file_path, x, y, xlabels='Length [m]',
+                           ylabels='Pressure [Pa]')
+        # plot manifold pressures
+        x = self.manifolds[0].cord_length
+        y = [manifold.data['pressure'] for manifold in self.manifolds]
+        file_path = os.path.join(self.output_dir, 'manifold_pressure.png')
+        self.create_figure(file_path, x, y, xlabels='Length [m]',
                            ylabels='Pressure [Pa]')
 
-
-
-
-
-
-
-
-
-
-
+        # plot mass flow distribution
+        x = np.array([i for i in range(self.n_channels)])
+        mass_flows = self.mass_flow_data.mass_flows
+        y = mass_flows / np.mean(mass_flows)
+        file_path = os.path.join(self.output_dir, 'mass_flow_distribution.png')
+        self.create_figure(file_path, x, y, xlabels='Channels [-]',
+                           ylabels='Normalized Mass Flow [-]')
 
 
 
