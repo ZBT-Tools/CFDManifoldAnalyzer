@@ -167,6 +167,25 @@ class OutputObject:
                 print(e)
 
     @staticmethod
+    def check_dims(var, nax, correct_single_dim=False):
+        if isinstance(var, (str, type(None))):
+            var = [var]
+        if not isinstance(var, (list, tuple, np.ndarray)):
+            raise TypeError('variable must be provided '
+                            'as tuple, list or numpy array')
+        if len(var) != nax:
+            if correct_single_dim:
+                if nax == 1:
+                    var = [var]
+                else:
+                    raise ValueError('variable must be sequence with '
+                                     'length equivalent to number of plots')
+            else:
+                raise ValueError('variable must be sequence with '
+                                 'length equivalent to number of plots')
+        return var
+
+    @staticmethod
     def set_ax_properties(ax, **kwargs):
         fontsize = kwargs.get('fontsize', FONT_SIZE)
         if 'xlabel' in kwargs:
@@ -195,6 +214,7 @@ class OutputObject:
         x = np.asarray(x)
         y = np.asarray(y)
         ny = len(y)
+        nax = 1
 
         if ax is None:
             fig, ax = plt.subplots()
@@ -221,12 +241,15 @@ class OutputObject:
                     kwargs.get('color',
                                list(islice(cycle(['k', 'b', 'r', 'g', 'y']),
                                            ny)))
-            linestyles = \
-                list(islice(cycle(kwargs.get('linestyle', ['-'])), ny))
-            markers = \
-                list(islice(cycle(kwargs.get('marker', ['.'])), ny))
-            fillstyles = \
-                list(islice(cycle(kwargs.get('fillstyle', ['full'])), ny))
+            linestyle = self.check_dims(kwargs.get('linestyle', ['-']), nax,
+                                        correct_single_dim=True)
+            linestyles = list(islice(cycle(linestyle), ny))
+            marker = self.check_dims(kwargs.get('marker', ['.']), nax,
+                                     correct_single_dim=True)
+            markers = list(islice(cycle(marker), ny))
+            fillstyle = self.check_dims(kwargs.get('fillstyle', ['full']), nax,
+                                        correct_single_dim=True)
+            fillstyles = list(islice(cycle(fillstyle), ny))
             for i in range(ny):
                 ax.plot(x[i], y[i], marker=markers[i],
                         markersize=kwargs.get('markersize', MARKER_SIZE),
@@ -234,7 +257,7 @@ class OutputObject:
                         linewidth=kwargs.get('linewidth', LINE_WIDTH),
                         linestyle=linestyles[i],
                         color=colors[i])
-        set_props = kwargs.get('set_props', False)
+        set_props = kwargs.get('set_props', True)
         if set_props:
             ax.grid(True)
             ax.use_sticky_edges = False
@@ -245,25 +268,7 @@ class OutputObject:
     def create_figure(self, filepath, x_array, y_array, xlabels, ylabels,
                       xlims=None, ylims=None, xticks=None, yticks=None,
                       titles=None, rows=1, cols=1, **kwargs):
-        nplots = rows*cols
-
-        def check_dims(variable, correct_single_dim=False):
-            if isinstance(variable, str):
-                variable = [variable]
-            if not isinstance(variable, (list, tuple, np.ndarray)):
-                raise TypeError('variable must be provided '
-                                'as tuple, list or numpy array')
-            if len(variable) != nplots:
-                if correct_single_dim:
-                    if nplots == 1:
-                        variable = [variable]
-                    else:
-                        raise ValueError('variable must be sequence with '
-                                         'length equivalent to number of plots')
-                else:
-                    raise ValueError('variable must be sequence with '
-                                     'length equivalent to number of plots')
-            return variable
+        nax = rows*cols
 
         if rows > 2:
             figsize = kwargs.get('figsize', (FIG_SIZE[0],
@@ -273,41 +278,45 @@ class OutputObject:
         fig = plt.figure(dpi=kwargs.get('dpi', FIG_DPI), figsize=figsize)
 
         x_array = np.asarray(x_array)
-        y_array = check_dims(np.asarray(y_array), correct_single_dim=True)
+        y_array = self.check_dims(np.asarray(y_array), nax,
+                                  correct_single_dim=True)
 
-        if len(x_array) != nplots:
+        if len(x_array) != nax:
             if x_array.ndim == 1:
-                x_array = np.tile(x_array, (nplots, 1))
+                x_array = np.tile(x_array, (nax, 1))
             else:
                 raise ValueError('Dimension of x-array is not one and does not '
                                  'match number of plot')
         fontsize = kwargs.get('fontsize', FONT_SIZE)
-        xlabels = check_dims(xlabels)
-        ylabels = check_dims(ylabels)
+        xlabels = self.check_dims(xlabels, nax)
+        ylabels = self.check_dims(ylabels, nax)
 
-        for i in range(nplots):
+        for i in range(nax):
             ax = fig.add_subplot(rows, cols, i+1)
-            xarray = x_array[i]
-            yarray = y_array[i]
             ax = self.plot_lines(x_array[i], y_array[i], ax=ax,
                                  xlabel=xlabels[i], ylabel=ylabels[i], **kwargs)
             if titles is not None:
-                titles = check_dims(titles)
+                titles = self.check_dims(titles, nax)
                 ax.set_title(titles[i], fontsize=fontsize)
             if 'legend' in kwargs:
-                legend = check_dims(kwargs['legend'], correct_single_dim=True)
+                legend = self.check_dims(kwargs['legend'], nax,
+                                         correct_single_dim=True)
                 ax.legend(legend[i])
             if xlims is not None:
-                xlims = check_dims(xlims, correct_single_dim=True)
+                xlims = self.check_dims(xlims, nax,
+                                        correct_single_dim=True)
                 ax.set_xlim(xlims[i])
             if ylims is not None:
-                xlims = check_dims(xlims, correct_single_dim=True)
+                ylims = self.check_dims(ylims, nax,
+                                        correct_single_dim=True)
                 ax.set_ylim(ylims[i])
             if xticks is not None:
-                xticks = check_dims(xticks, correct_single_dim=True)
+                xticks = self.check_dims(xticks, nax,
+                                         correct_single_dim=True)
                 ax.set_xticks(xticks[i])
             if yticks is not None:
-                xlims = check_dims(yticks, correct_single_dim=True)
+                xlims = self.check_dims(yticks, nax,
+                                        correct_single_dim=True)
                 ax.set_yticks(yticks[i])
         plt.tight_layout()
         if filepath:
