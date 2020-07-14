@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, interp1d
 import os
 import timeit
 from ..settings import file_names
@@ -40,6 +40,7 @@ class CFDDataChannel(OutputObject):
         self.coords = np.zeros((self.dims, self.nx))
         self.cord_length = np.linspace(0.0, self.length, self.nx)
         self.inlet_mass_flow = 0.0
+        self.data_function = {key: [] for key in value_names}
 
     def create_coords(self):
         length_vector = self.length * self.direction_vector
@@ -231,6 +232,19 @@ class CFDManifoldProcessor(OutputObject):
             channel.data[data_name] = channel_pressure[i]
         for i, manifold in enumerate(self.manifolds):
             manifold.data[data_name] = manifold_pressure[i]
+
+    def make_interpolation_functions(self, data_name='pressure'):
+        for chl in self.channels:
+            for coord in chl.coords:
+                chl.data_function[data_name].append(
+                    interp1d(coord, chl.data[data_name]))
+        for mfd in self.manifolds:
+            for coord in mfd.coords:
+                mfd.data_function[data_name].append(
+                    interp1d(coord, mfd.data[data_name]))
+
+
+
 
     def save_collection(self, collection_name):
         if collection_name == 'channel':
