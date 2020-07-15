@@ -12,6 +12,7 @@ import pemfc
 
 from ..settings import geometry
 from ..settings import file_names
+from . import cfd_data_processor
 
 
 class CFDDataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
@@ -25,6 +26,9 @@ class CFDDataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
         pass
 
     def update(self, inlet_mass_flow=None, calc_distribution=None):
+        pass
+
+    def process_data(self, cfd_data_processor.CFDManifoldProcessor):
         pass
 
 
