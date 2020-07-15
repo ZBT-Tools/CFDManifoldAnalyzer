@@ -243,9 +243,6 @@ class CFDManifoldProcessor(OutputObject):
                 mfd.data_function[data_name].append(
                     interp1d(coord, mfd.data[data_name]))
 
-
-
-
     def save_collection(self, collection_name):
         if collection_name == 'channel':
             collection = self.channels
