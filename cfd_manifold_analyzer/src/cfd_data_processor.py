@@ -50,6 +50,7 @@ class CFDDataChannel(OutputObject):
                                     self.nx)
                         for i in range(len(end_vector))])
         self.coords[:] = coords
+        self.x[:] = np.dot(self.coords, self.direction_vector)
         return coords
 
     def plot(self, x=None, y=None, xlabel='Cord Length [-]',
