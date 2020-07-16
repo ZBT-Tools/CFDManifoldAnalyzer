@@ -9,6 +9,11 @@ from .output import OutputObject
 from . import constants
 
 
+def find_nearest_idx(array, value):
+    array = np.asarray(array)
+    return (np.abs(array - value)).argmin()
+
+
 class CFDDataChannel(OutputObject):
     def __init__(self, diameter, length, start_vector, direction_vector, dx,
                  value_names=('pressure',), name=None):
@@ -42,6 +47,9 @@ class CFDDataChannel(OutputObject):
         self.inlet_mass_flow = 0.0
         self.data_function = {key: [] for key in value_names}
 
+    def process(self):
+        pass
+
     def create_coords(self):
         length_vector = self.length * self.direction_vector
         end_vector = self.start_vector + length_vector
@@ -53,14 +61,43 @@ class CFDDataChannel(OutputObject):
         self.x[:] = np.dot(self.coords, self.direction_vector)
         return coords
 
-    def plot(self, x=None, y=None, xlabel='Cord Length [-]',
-             ylabel='CFD Data [-]', colormap=None, ax=None, **kwargs):
+    def plot(self, x=None, y=None, xlabel='Channel Coordinate [m]',
+             ylabel='Pressure [Pa]', data_name='pressure',
+             colormap=None, ax=None, **kwargs):
         if x is None:
             x = self.cord_length
         if y is None:
-            y = self.data[0]
+            y = self.data[data_name]
         return super().plot_lines(x, y, xlabel=xlabel, ylabel=ylabel,
                                   colormap=colormap, ax=ax, **kwargs)
+
+
+class LinearCFDDataChannel(CFDDataChannel):
+
+    def __init__(self, diameter, length, start_vector, direction_vector, dx,
+                 value_names=('pressure',), name=None):
+        super().__init__(diameter, length, start_vector, direction_vector, dx,
+                         value_names=value_names, name=name)
+        # if not isinstance(lin_segments, (tuple, list, np.ndarray)):
+        #     raise TypeError('argument lin_segments must be iterable with each'
+        #                     ' entry containing a coordinate pair (start, end) '
+        #                     'of a channel segment to be linearized')
+        # self.lin_segments = lin_segments
+        # self.n_lin_segments = len(lin_segments)
+        # self.lin_coeffs = []
+
+    def linear_coefficients(self, lin_segment, data_name='pressure'):
+        idx0 = find_nearest_idx(self.x, lin_segment[0])
+        idx1 = find_nearest_idx(self.x, lin_segment[1])
+        lin_coeffs = \
+            np.polynomial.polynomial.polyfit(self.x[idx0:idx1],
+                                             self.data[data_name][idx0,idx1],
+                                             1)
+        return lin_coeffs
+
+    def linear_values(self, x, x_lin):
+        lin_coeffs = self.linear_coefficients(x_lin)
+        return np.polynomial.polynomial.polyval(x, lin_coeffs)
 
 
 class CFDMassFlowProcessor(OutputObject):

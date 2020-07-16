@@ -28,6 +28,16 @@ class DataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
     def update(self, inlet_mass_flow=None, calc_distribution=None):
         pass
 
+    def process_channels(self, cfd_data, data_name='pressure'):
+        data_channels = cfd_data.channels
+        for i, channel in self.channels:
+            dc = data_channels[i]
+            # coordinate transformation for pressure interpolation
+            x = np.linspace(dc.x[0], dc.x[-1], channel.n_nodes)
+            self.channels
+            chl.coords
+
+
     def process_data(self, cfd_data, data_name='pressure'):
         if not isinstance(cfd_data, cfd_data_processor.CFDManifoldProcessor):
             raise TypeError('cfd_data must be CFDManifoldProcessor object')
@@ -35,7 +45,6 @@ class DataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
             cfd_data.process()
         for i, channel in enumerate(self.channels):
             data_channel = cfd_data.channels[i]
-            x_data = np.dot(data_channel.coords, data_channel.direction_vector)
             x = np.linspace(x_data[0], x_data[-1], channel.n_nodes)
             cfd_data.channels[0].direction_vector *
             channel.pressure[:] = \

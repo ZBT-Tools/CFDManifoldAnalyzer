@@ -246,6 +246,7 @@ lin_coeffs = \
                                       p_channel[i][100:-100], 1)
      for i in range(geometry.n_channels)]
 
+
 def poly(x, coeffs):
     return np.polynomial.polynomial.polyval(x, coeffs)
 
