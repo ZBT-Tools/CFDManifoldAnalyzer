@@ -4,8 +4,8 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib
 import timeit
-from ..settings import file_names
-from ..settings import geometry as geom
+from cfd_manifold_analyzer.settings import file_names
+from cfd_manifold_analyzer.settings import geometry as geom
 
 matplotlib.use('TkAgg')
 

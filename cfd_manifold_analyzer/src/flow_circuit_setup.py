@@ -68,7 +68,7 @@ out_manifold_dict['flow_split_factor'] = 0.0
 
 flow_circuit_dict = {
     'name': 'Flow Circuit',
-    'type': 'ModifiedKoh',
+    'type': 'DataFlowCircuit',
     'shape': 'U'
     }
 

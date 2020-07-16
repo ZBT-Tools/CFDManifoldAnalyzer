@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator)
 
 # local module imports
-from ..settings import file_names
-from ..settings import geometry
+from cfd_manifold_analyzer.settings import file_names
+from cfd_manifold_analyzer.settings import geometry
 
 
 def add_source(var, source, direction=1, tri_mtx=None):
@@ -149,7 +149,7 @@ for i in range(geometry.n_manifolds):
     z_test = z_manifold_res # [400:600]
     p_test = p_manifold_res # [400:600]
     fig, ax1 = plt.subplots()
-    ax1.plot_lines(z_test, p_test)
+    ax1.plot(z_test, p_test)
     wl = np.int(np.round(n_res/10) // 2 * 2 + 1)
     po = 5
     p_test = signal.savgol_filter(p_test, window_length=wl, polyorder=po)
@@ -161,7 +161,7 @@ for i in range(geometry.n_manifolds):
     grad_p_test = signal.savgol_filter(grad_p_test,
                                         window_length=wl, polyorder=po)
     ax2 = ax1.twinx()
-    ax2.plot_lines(z_test, grad_p_test)
+    ax2.plot(z_test, grad_p_test)
     plt.show()
 
     id_manifold_min = signal.argrelmin(grad_p_test, order=3)[0]
@@ -220,16 +220,16 @@ plt.savefig(os.path.join(output_dir_name, 'inlet_zeta_junction_manifold.png'))
 fig, ax1 = plt.subplots(dpi=dpi, figsize=figsize)
 z_plot = z_manifold[1]
 xticks = np.arange(z_plot[0], z_plot[-1], 0.005)
-ax1.plot_lines(z_plot, p_manifold[1])
-ax1.plot_lines(z_plot, p_manifold_function[1](z_plot))
-ax1.plot_lines(z_dyn, p_dyn)
+ax1.plot(z_plot, p_manifold[1])
+ax1.plot(z_plot, p_manifold_function[1](z_plot))
+ax1.plot(z_dyn, p_dyn)
 ax2 = ax1.twinx()
 # ax2.set_xticks(xticks)
 ax1.xaxis.set_major_locator(MultipleLocator(0.01))
 #ax1.xaxis.set_minor_locator(MultipleLocator(0.0025))
 # ax2 = plt.gca()
 ax1.grid(True, which='major')
-ax2.plot_lines(z_manifold[1], junction_square)
+ax2.plot(z_manifold[1], junction_square)
 # plt.show()
 
 plt.savefig(os.path.join(output_dir_name, 'inlet_manifold_pressure.png'))

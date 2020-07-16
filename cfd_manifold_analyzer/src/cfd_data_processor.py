@@ -85,8 +85,8 @@ class CFDMassFlowProcessor(OutputObject):
             cfd_data_2d[self.total_mass_flow_name].iloc[-2][0]
         return self.mass_flows
 
-    def save(self, name='mass_flow_data', ascii=False):
-        if ascii:
+    def save(self, name='mass_flow_data', as_ascii=True):
+        if as_ascii:
             np.savetxt(os.path.join(self.output_dir, name), self.mass_flows)
         else:
             np.save(os.path.join(self.output_dir, name), self.mass_flows)
@@ -141,9 +141,14 @@ class CFDManifoldProcessor(OutputObject):
         self.n_channels = len(self.channels)
         self.n_manifolds = len(self.manifolds)
 
+        # status flag if data has been processed
+        self.is_processed = False
+
     def process(self):
         self.interpolate_data()
+        self.make_interpolation_functions()
         self.mass_flow_data.process()
+        self.is_processed = True
 
     def load_3d_data(self):
         file_ext = self.pressure_file_path.split('.')[-1]

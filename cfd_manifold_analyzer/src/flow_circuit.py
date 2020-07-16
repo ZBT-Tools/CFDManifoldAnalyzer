@@ -15,7 +15,7 @@ from ..settings import file_names
 from . import cfd_data_processor
 
 
-class CFDDataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
+class DataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
     def __init__(self, dict_flow_circuit, manifolds, channels,
                  n_subchannels=1.0, **kwargs):
 
@@ -28,8 +28,18 @@ class CFDDataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
     def update(self, inlet_mass_flow=None, calc_distribution=None):
         pass
 
-    def process_data(self, cfd_data_processor.CFDManifoldProcessor):
-        pass
+    def process_data(self, cfd_data, data_name='pressure'):
+        if not isinstance(cfd_data, cfd_data_processor.CFDManifoldProcessor):
+            raise TypeError('cfd_data must be CFDManifoldProcessor object')
+        if not cfd_data.is_processed:
+            cfd_data.process()
+        for i, channel in enumerate(self.channels):
+            data_channel = cfd_data.channels[i]
+            x_data = np.dot(data_channel.coords, data_channel.direction_vector)
+            x = np.linspace(x_data[0], x_data[-1], channel.n_nodes)
+            cfd_data.channels[0].direction_vector *
+            channel.pressure[:] = \
+                cfd_data.channels[i].data_function[data_name](channel.x)
 
 
 def factory(dict_circuit, dict_in_manifold, dict_out_manifold,
@@ -49,5 +59,5 @@ def factory(dict_circuit, dict_in_manifold, dict_out_manifold,
     manifolds = [pemfc.channel.Channel(dict_in_manifold, in_manifold_fluid),
                  pemfc.channel.Channel(dict_out_manifold, out_manifold_fluid)]
 
-    return CFDDataFlowCircuit(dict_circuit, manifolds, channels,
-                              n_subchannels=channel_multiplier)
+    return DataFlowCircuit(dict_circuit, manifolds, channels,
+                           n_subchannels=channel_multiplier)
