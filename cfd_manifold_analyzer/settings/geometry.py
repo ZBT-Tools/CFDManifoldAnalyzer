@@ -33,6 +33,8 @@ channel_length = manifold_distance - manifold_diameter
 channel_distance_z = 0.02
 # z-coordinate of first channel [m]
 channel_0_z = 0.005
+# linear segments of channel pressure distribution
+lin_segments = ((0.011, 0.016), (0.221, 0.226))
 # maximum extensions of coordinates in 3D results cut [m]
 x_ext = (0.0, 0.0)
 y_ext = (0.0 - 0.5 * manifold_diameter,

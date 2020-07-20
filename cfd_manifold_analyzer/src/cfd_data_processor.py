@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import pandas as pd
 from scipy.interpolate import griddata, interp1d
 import os
@@ -75,28 +76,64 @@ class CFDDataChannel(OutputObject):
 class LinearCFDDataChannel(CFDDataChannel):
 
     def __init__(self, diameter, length, start_vector, direction_vector, dx,
-                 value_names=('pressure',), name=None):
+                 lin_segments=None, value_names=('pressure',), name=None):
         super().__init__(diameter, length, start_vector, direction_vector, dx,
                          value_names=value_names, name=name)
-        # if not isinstance(lin_segments, (tuple, list, np.ndarray)):
-        #     raise TypeError('argument lin_segments must be iterable with each'
-        #                     ' entry containing a coordinate pair (start, end) '
-        #                     'of a channel segment to be linearized')
-        # self.lin_segments = lin_segments
-        # self.n_lin_segments = len(lin_segments)
-        # self.lin_coeffs = []
+        if not isinstance(lin_segments, (tuple, list, np.ndarray)):
+            raise TypeError('argument lin_segments must be iterable with each'
+                            ' entry containing a coordinate pair (start, end) '
+                            'of a channel segment to be linearized')
+        self.lin_segments = lin_segments
+        self.lin_coeffs = []
 
-    def linear_coefficients(self, lin_segment, data_name='pressure'):
-        idx0 = find_nearest_idx(self.x, lin_segment[0])
-        idx1 = find_nearest_idx(self.x, lin_segment[1])
-        lin_coeffs = \
-            np.polynomial.polynomial.polyfit(self.x[idx0:idx1],
-                                             self.data[data_name][idx0,idx1],
-                                             1)
-        return lin_coeffs
+    @staticmethod
+    def _linear_coefficients(x, y, method='2-points'):
+        x = np.asarray(x)
+        y = np.asarray(y)
+        if x.shape != y.shape:
+            raise ValueError('x and y must have equal shapes')
+        if np.dim(x) != 1 or x.shape[-1] < 2:
+            raise ValueError('x and y must be one-dimensional array with at '
+                             'least two entries')
+        if method == '2-points' or x.shape[-1] == 2:
+            m = (y[2] - y[1]) / (x[2] - x[1])
+            b = y[1] - m * x[1]
+            return np.asarray((b, m))
+        elif method =='polyfit':
+            np.polynomial.polynomial.polyfit(x, y, 1)
+        else:
+            raise NotImplementedError
 
-    def linear_values(self, x, x_lin):
-        lin_coeffs = self.linear_coefficients(x_lin)
+    def linear_coefficients(self, lin_segments=None, data_name='pressure'):
+        lin_seg_describer = 'lin_segments must be iterable with coordinate ' + \
+                            'pairs (start, end) describing each ' + \
+                            'linear segment of interest for the channel'
+        if lin_segments is None:
+            lin_segments = self.lin_segments
+        lin_segments = np.asarray(lin_segments)
+
+        if lin_segments.shape[-1] != 2:
+            raise ValueError(lin_seg_describer)
+        if lin_segments.shape == (1, 1):
+            n_segs = 1
+            lin_segments = np.asarray([lin_segments])
+        elif np.dim(lin_segments) == 2:
+            n_segs = len(lin_segments)
+        else:
+            raise ValueError(lin_seg_describer)
+        for seg in lin_segments:
+            idx0 = find_nearest_idx(self.x, seg[0])
+            idx1 = find_nearest_idx(self.x, seg[1])
+
+            self.lin_coeffs.append(
+                self._linear_coefficients(self.x[idx0:idx1],
+                                          self.data[data_name][idx0:idx1]))
+        return self.lin_coeffs
+
+    def linear_values(self, x, lin_segment):
+        x = np.asarray(x)
+        if x.ndim == 1:
+        lin_coeffs = self.linear_coefficients(lin_segment)
         return np.polynomial.polynomial.polyval(x, lin_coeffs)
 
 
@@ -158,10 +195,11 @@ class CFDManifoldProcessor(OutputObject):
                             geom.manifold_y[0] + 0.5 * geom.manifold_diameter,
                             geom.channel_0_z + i * geom.channel_distance_z))
             direction_vector = np.asarray((0.0, 1.0, 0.0))
-            self.channels.append(CFDDataChannel(geom.channel_diameter,
+            self.channels.append(LinearCFDDataChannel(geom.channel_diameter,
                                                 geom.channel_length,
                                                 start_vector, direction_vector,
-                                                geom.channel_dy))
+                                                geom.channel_dy,
+                                                geom.lin_segments))
 
         # create manifold data objects
         self.manifolds = []
