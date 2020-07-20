@@ -84,7 +84,7 @@ class LinearCFDDataChannel(CFDDataChannel):
                             ' entry containing a coordinate pair (start, end) '
                             'of a channel segment to be linearized')
         self.lin_segments = lin_segments
-        self.lin_coeffs = []
+        self.lin_coeffs = None
 
     @staticmethod
     def _linear_coefficients(x, y, method='2-points'):
@@ -104,12 +104,16 @@ class LinearCFDDataChannel(CFDDataChannel):
         else:
             raise NotImplementedError
 
-    def linear_coefficients(self, lin_segments=None, data_name='pressure'):
+    def calc_linear_coefficients(self, lin_segments=None, data_name='pressure'):
         lin_seg_describer = 'lin_segments must be iterable with coordinate ' + \
                             'pairs (start, end) describing each ' + \
                             'linear segment of interest for the channel'
         if lin_segments is None:
-            lin_segments = self.lin_segments
+            if self.lin_segments is None:
+                raise ValueError('either argument lin_segments nor object '
+                                 'attribute self.lin_segments must not be None')
+            else:
+                lin_segments = self.lin_segments
         lin_segments = np.asarray(lin_segments)
 
         if lin_segments.shape[-1] != 2:
@@ -121,20 +125,39 @@ class LinearCFDDataChannel(CFDDataChannel):
             n_segs = len(lin_segments)
         else:
             raise ValueError(lin_seg_describer)
+        lin_coeffs = []
         for seg in lin_segments:
             idx0 = find_nearest_idx(self.x, seg[0])
             idx1 = find_nearest_idx(self.x, seg[1])
 
-            self.lin_coeffs.append(
+            lin_coeffs.append(
                 self._linear_coefficients(self.x[idx0:idx1],
                                           self.data[data_name][idx0:idx1]))
-        return self.lin_coeffs
+        lin_coeffs = np.asarray(lin_coeffs)
+        return lin_coeffs
 
-    def linear_values(self, x, lin_segment):
+    def set_linear_coefficients(self, lin_segments=None, data_name='pressure'):
+        self.lin_coeffs = self.calc_linear_coefficients(lin_segments, data_name)
+
+    def linear_values(self, x, lin_segment=None):
         x = np.asarray(x)
+        if lin_segment is None:
+            if self.lin_segments is not None:
+                lin_segment = self.lin_segments
+            else:
+                raise ValueError('either argument lin_segment or object '
+                                 'attribute self.lin_segments must not be None')
+
+
+        lin_segment = np.asarray(lin_segment)
+        if x.ndim != lin_segment.ndim:
+            raise ValueError('arguments x and lin_segment '
+                             'must have equal dimensions')
         if x.ndim == 1:
-        lin_coeffs = self.linear_coefficients(lin_segment)
-        return np.polynomial.polynomial.polyval(x, lin_coeffs)
+            lin_coeffs = self.calc_linear_coefficients(lin_segment)
+            return np.polynomial.polynomial.polyval(x, lin_coeffs)
+        elif x.ndim == 2:
+
 
 
 class CFDMassFlowProcessor(OutputObject):
