@@ -34,7 +34,7 @@ class DataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
             dc = data_channels[i]
             # coordinate transformation for pressure interpolation
             x = np.linspace(dc.x[0], dc.x[-1], channel.n_nodes)
-            self.channels
+            self.channels = \
             chl.coords
 
 
