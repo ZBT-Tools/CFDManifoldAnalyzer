@@ -10,14 +10,17 @@ import numpy as np
 n_channels = 16
 # number of manifolds
 n_manifolds = 2
-# manifold centerline height [m] (y-coordinate),
-# tuple indexing along y-coordinate not according to flow direction
-manifold_y = (0, 0.24)
+# manifold centerline y-coordinate [m]
+# tuple indexing according to flow direction
+# (index 0: inlet manifold, index 1: outlet manifold)
+manifold_y = (0.24, 0.0)
 # flow direction in manifold in z-direction,
-# tuple indexing along y-coordinate not according to flow direction
-manifold_flow_direction_z = (-1, 1)
+# tuple indexing according to flow direction
+# (index 0: inlet manifold, index 1: outlet manifold)
+manifold_flow_direction = ((0.0, 0.0, 1.0),
+                           (0.0, 0.0, -1.0))
 # flow direction in channel in y-direction
-channel_flow_direction_y = -1
+channel_flow_direction = (0.0, -1.0, 0.0)
 # discretization [m] in channel along y-axis
 channel_dy = 5e-4
 # discretization [m] in manifold along z-direction

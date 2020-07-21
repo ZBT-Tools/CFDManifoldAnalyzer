@@ -37,6 +37,13 @@ class CFDDataChannel(OutputObject):
                 direction_vector / np.linalg.norm(direction_vector)
         except FloatingPointError:
             raise FloatingPointError('direction vector must not be zero')
+
+        # assure channel is aligned with axis of coordinate system
+        if len(self.direction_vector[self.direction_vector != 0]) != 1:
+            raise ValueError('channel direction must be aligned with '
+                             'coordinate axis: self.direction_vector must only '
+                             'have one non-zero value')
+
         self.dx = dx
         self.nx = int(np.round(self.length / self.dx)) + 1
         self.data = {key: np.zeros(self.nx) for key in value_names}
@@ -99,7 +106,7 @@ class LinearCFDDataChannel(CFDDataChannel):
             m = (y[2] - y[1]) / (x[2] - x[1])
             b = y[1] - m * x[1]
             return np.asarray((b, m))
-        elif method =='polyfit':
+        elif method == 'polyfit':
             np.polynomial.polynomial.polyfit(x, y, 1)
         else:
             raise NotImplementedError
@@ -139,7 +146,12 @@ class LinearCFDDataChannel(CFDDataChannel):
     def set_linear_coefficients(self, lin_segments=None, data_name='pressure'):
         self.lin_coeffs = self.calc_linear_coefficients(lin_segments, data_name)
 
-    def linear_values(self, x, lin_segment=None):
+    def get_linear_coefficients(self, lin_segments=None, data_name='pressure'):
+        if self.lin_coeffs is None:
+            self.set_linear_coefficients(lin_segments, data_name)
+        return self.lin_coeffs
+
+    def linear_values(self, x, lin_segment=None, data_name='pressure'):
         x = np.asarray(x)
         if lin_segment is None:
             if self.lin_segments is not None:
@@ -148,16 +160,18 @@ class LinearCFDDataChannel(CFDDataChannel):
                 raise ValueError('either argument lin_segment or object '
                                  'attribute self.lin_segments must not be None')
 
-
         lin_segment = np.asarray(lin_segment)
         if x.ndim != lin_segment.ndim:
             raise ValueError('arguments x and lin_segment '
                              'must have equal dimensions')
         if x.ndim == 1:
-            lin_coeffs = self.calc_linear_coefficients(lin_segment)
+            lin_coeffs = self.calc_linear_coefficients(lin_segment, data_name)
             return np.polynomial.polynomial.polyval(x, lin_coeffs)
         elif x.ndim == 2:
-
+            lin_coeffs = self.get_linear_coefficients(lin_segment, data_name)
+            return np.asarray(
+                [np.polynomial.polynomial.polyval(x[i], lin_coeffs[i])
+                 for i in range(len(x))])
 
 
 class CFDMassFlowProcessor(OutputObject):
@@ -210,26 +224,49 @@ class CFDManifoldProcessor(OutputObject):
 
         self.collections = ('channel', 'manifold')
 
+        self.n_channels = geom.n_channels
+        self.n_manifolds = geom.n_manifolds
+
+
         # create channel data objects
+        # assure correct dimensions of flow direction array
+        channel_flow_direction = np.asarray(geom.channel_flow_direction)
+        if channel_flow_direction.shape != (3,):
+            raise ValueError('shape of channel_flow_direction must be '
+                             'one-dimensional array with three values')
         self.channels = []
         for i in range(geom.n_channels):
             start_vector = \
                 np.asarray((0.0,
-                            geom.manifold_y[0] + 0.5 * geom.manifold_diameter,
+                            geom.manifold_y[0] - 0.5 * geom.manifold_diameter,
                             geom.channel_0_z + i * geom.channel_distance_z))
-            direction_vector = np.asarray((0.0, 1.0, 0.0))
-            self.channels.append(LinearCFDDataChannel(geom.channel_diameter,
-                                                geom.channel_length,
-                                                start_vector, direction_vector,
-                                                geom.channel_dy,
-                                                geom.lin_segments))
+            direction_vector = channel_flow_direction
+            self.channels.append(
+                LinearCFDDataChannel(geom.channel_diameter, geom.channel_length,
+                                     start_vector, direction_vector,
+                                     geom.channel_dy, geom.lin_segments))
 
         # create manifold data objects
+        manifold_flow_direction = np.asarray(geom.manifold_flow_direction)
+        if manifold_flow_direction.shape != (self.n_manifolds, 3):
+            raise ValueError('shape of channel_flow_direction must be '
+                             'two-dimensional array with three values for '
+                             'each manifold')
         self.manifolds = []
         for i in range(geom.n_manifolds):
-            start_vector = \
-                np.asarray((0.0, geom.manifold_y[i], geom.bounding_box[-1, 0]))
-            direction_vector = np.asarray((0.0, 0.0, 1.0))
+            mfd_flow_dir = manifold_flow_direction[i]
+            if mfd_flow_dir[mfd_flow_dir != 0] > 0:
+                idz = 0
+            elif mfd_flow_dir[mfd_flow_dir != 0] < 0:
+                idz = -1
+            else:
+                raise ValueError('each manifold flow direction vector must '
+                                 'contain a single non-zero positive or '
+                                 'negative value aligned with a coordinate '
+                                 'axis')
+            start_vector = np.asarray((0.0, geom.manifold_y[i],
+                                       geom.bounding_box[-1, idz]))
+            direction_vector = np.asarray(mfd_flow_dir)
             self.manifolds.append(CFDDataChannel(geom.manifold_diameter,
                                                  geom.manifold_length,
                                                  start_vector, direction_vector,
@@ -237,8 +274,6 @@ class CFDManifoldProcessor(OutputObject):
         # initialize mass flow data
         self.mass_flow_data = CFDMassFlowProcessor(self.mass_flow_file_path,
                                                    self.output_dir)
-        self.n_channels = len(self.channels)
-        self.n_manifolds = len(self.manifolds)
 
         # status flag if data has been processed
         self.is_processed = False
@@ -256,7 +291,8 @@ class CFDManifoldProcessor(OutputObject):
         elif file_ext == 'dat':
             return np.loadtxt(self.pressure_file_path).transpose()
         else:
-            raise IOError('file must be ascii (.dat) or binary (.npy)')
+            raise IOError('file must be of ascii (.dat) or binary (.npy) '
+                          'format')
 
     def data_to_array(self):
         raw_data = self.load_3d_data()

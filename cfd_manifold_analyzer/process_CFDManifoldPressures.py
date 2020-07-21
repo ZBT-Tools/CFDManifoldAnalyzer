@@ -128,7 +128,7 @@ zeta_junction = np.zeros(v1.shape)
 for i in range(geometry.n_manifolds):
     zeta_junction[i] = \
         (2.0 * dp_junction[i] / density - (v2[i] ** 2.0 - v1[i] ** 2.0)
-         * geometry.manifold_flow_direction_z[i]) / (v1[i] ** 2.0)
+         * geometry.manifold_flow_direction[i]) / (v1[i] ** 2.0)
 
 # test
 n_res = 1000
@@ -176,13 +176,13 @@ for i in range(geometry.n_manifolds):
     dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
     zeta_junction_2.append((2.0 * dp_junction_2[i] / density
                             - (v2[i] ** 2.0 - v1[i] ** 2.0)
-                            * geometry.manifold_flow_direction_z[i])
+                            * geometry.manifold_flow_direction[i])
                            / (v1[i] ** 2.0))
 # zeta_junction_2 = 2.0 * dp_junction_2 / density \
 #     / (v1[:-1] ** 2.0)
     velocity_ratio.append(v2[i]/v1[i])
 
-    if geometry.manifold_flow_direction_z[i] == 1:
+    if geometry.manifold_flow_direction[i] == 1:
         zeta_junction_idelchik.append(0.4 * (1.0 - velocity_ratio[i] ** 2.0))
     else:
         # function must be implemented here from idelchik
@@ -192,13 +192,13 @@ for i in range(geometry.n_manifolds):
     zeta_junction_fit.append(0.4 * (1.0 - velocity_ratio[i] ** 2.0))
     
 # pressure due to changes in dynamic pressure in manifold 1
-dp_dyn = calc_pressure_drop(manifold_velocity[1], density, 0.05, 
-                            geometry.manifold_flow_direction_z[1])
+dp_dyn = calc_pressure_drop(manifold_velocity[1], density, 0.05,
+                            geometry.manifold_flow_direction[1])
 print(dp_dyn)
 p_dyn = np.zeros(manifold_velocity[1].shape) 
 p_dyn[:] = p_manifold[1].min()
 print(p_manifold_function[1](z_junction_in[0]))
-pressure_direction = geometry.manifold_flow_direction_z[1]
+pressure_direction = geometry.manifold_flow_direction[1]
 add_source(p_dyn, -dp_dyn, direction=pressure_direction)
 z_dyn = \
     np.append(z_junction_in, z_junction_in[-1] + geometry.channel_distance_z)
