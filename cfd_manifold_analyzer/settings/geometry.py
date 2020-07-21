@@ -26,7 +26,7 @@ channel_dy = 5e-4
 # discretization [m] in manifold along z-direction
 manifold_dz = 5e-4
 # distance between manifolds in y-direction [m]
-manifold_distance = manifold_y[1] - manifold_y[0]
+manifold_distance = np.abs(manifold_y[1] - manifold_y[0])
 # manifold diameter [m]
 manifold_diameter = 0.01
 # channel diameter [m]
