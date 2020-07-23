@@ -45,3 +45,8 @@ y_ext = (0.0 - 0.5 * manifold_diameter,
 z_ext = (-0.105, 0.315)
 bounding_box = np.asarray((x_ext, y_ext, z_ext))
 manifold_length = np.abs(bounding_box[-1, 1] - bounding_box[-1, 0])
+
+# coordinate range for manifold pressure analyzation
+manifold_range = (-0.01, 0.3)
+
+

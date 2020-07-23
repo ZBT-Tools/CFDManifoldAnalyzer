@@ -158,20 +158,20 @@ for i in range(geom.n_manifolds):
     grad_p_test = signal.savgol_filter(grad_p_test,
                                        window_length=wl, polyorder=po)
     grad_p_test = np.gradient(grad_p_test)
-    # grad_p_test = signal.savgol_filter(grad_p_test,
-    #                                     window_length=wl, polyorder=po)
+    grad_p_test = signal.savgol_filter(grad_p_test,
+                                        window_length=wl, polyorder=po)
     ax2 = ax1.twinx()
     ax2.plot(z_test, grad_p_test)
     plt.show()
 
-    id_manifold_min = signal.argrelmin(grad_p_test, order=3)[0]
-    id_manifold_max = signal.argrelmax(grad_p_test, order=3)[0]
+    id_manifold_min = signal.argrelmin(grad_p_test, order=5)[0]
+    id_manifold_max = signal.argrelmax(grad_p_test, order=5)[0]
     print(len(id_manifold_min))
     print(len(id_manifold_max))
-    p_manifold_min.append(p_manifold_res[id_manifold_min])
-    p_manifold_max.append(p_manifold_res[id_manifold_max])
-    z_manifold_min.append(z_manifold_res[id_manifold_min])
-    z_manifold_max.append(z_manifold_res[id_manifold_max])
+    p_manifold_min.append(p_manifold_res[id_manifold_max])
+    p_manifold_max.append(p_manifold_res[id_manifold_min])
+    z_manifold_min.append(z_manifold_res[id_manifold_max])
+    z_manifold_max.append(z_manifold_res[id_manifold_min])
 
     dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
     zeta_junction_2.append((2.0 * dp_junction_2[i] / density
@@ -190,38 +190,40 @@ for i in range(geom.n_manifolds):
     
     # free fitting similar to idelchik model
     zeta_junction_fit.append(0.4 * (1.0 - velocity_ratio[i] ** 2.0))
-    
+
+mfd_id = 0
 # pressure due to changes in dynamic pressure in manifold 1
-dp_dyn = calc_pressure_drop(manifold_velocity[1], density, 0.05,
-                            geom.manifold_flow_direction[1][-1])
+dp_dyn = calc_pressure_drop(manifold_velocity[mfd_id], density, -0.01,
+                            geom.manifold_flow_direction[mfd_id][-1])
 print(dp_dyn)
-p_dyn = np.zeros(manifold_velocity[1].shape) 
-p_dyn[:] = p_manifold[1].min()
-print(p_manifold_function[1](z_junction_in[0]))
-pressure_direction = geom.manifold_flow_direction[1][-1]
-add_source(p_dyn, -dp_dyn, direction=pressure_direction)
+p_dyn = np.zeros(manifold_velocity[mfd_id].shape)
+p_dyn[:] = p_manifold[mfd_id][-1]
+print(p_manifold_function[mfd_id](z_junction_in[0]))
+pressure_direction = -geom.manifold_flow_direction[mfd_id][-1]
+add_source(p_dyn, dp_dyn, direction=pressure_direction)
 z_dyn = \
     np.append(z_junction_in, z_junction_in[-1] + geom.channel_distance_z)
 
 dpi = 200
 figsize = (6.4 * 2.0, 4.8 * 2.0)
 fig = plt.figure(dpi=dpi, figsize=figsize)
-plt.plot(z_junction, zeta_junction[1], 'k.')
-plt.plot(z_junction, zeta_junction_idelchik[1], 'b.')
+plt.plot(z_junction, zeta_junction[mfd_id], 'k.')
+plt.plot(z_junction, zeta_junction_2[mfd_id], 'r.')
+plt.plot(z_junction, zeta_junction_idelchik[mfd_id], 'b.')
 plt.show()
 plt.savefig(os.path.join(output_dir_name, 'inlet_x_zeta_junction_manifold.png'))
 
 fig = plt.figure(dpi=dpi, figsize=figsize)
-plt.plot(velocity_ratio[1], zeta_junction_2[1], 'k.')
-plt.plot(velocity_ratio[1], zeta_junction_idelchik[1], 'b.')
+plt.plot(velocity_ratio[mfd_id], zeta_junction_2[mfd_id], 'k.')
+plt.plot(velocity_ratio[mfd_id], zeta_junction_idelchik[mfd_id], 'b.')
 # plt.show()
 plt.savefig(os.path.join(output_dir_name, 'inlet_zeta_junction_manifold.png'))
 
 fig, ax1 = plt.subplots(dpi=dpi, figsize=figsize)
-z_plot = z_manifold[1]
+z_plot = z_manifold[mfd_id]
 xticks = np.arange(z_plot[0], z_plot[-1], 0.005)
-ax1.plot(z_plot, p_manifold[1])
-ax1.plot(z_plot, p_manifold_function[1](z_plot))
+ax1.plot(z_plot, p_manifold[mfd_id])
+ax1.plot(z_plot, p_manifold_function[mfd_id](z_plot))
 ax1.plot(z_dyn, p_dyn)
 ax2 = ax1.twinx()
 # ax2.set_xticks(xticks)
@@ -229,7 +231,7 @@ ax1.xaxis.set_major_locator(MultipleLocator(0.01))
 #ax1.xaxis.set_minor_locator(MultipleLocator(0.0025))
 # ax2 = plt.gca()
 ax1.grid(True, which='major')
-ax2.plot(z_manifold[1], junction_square)
+ax2.plot(z_manifold[mfd_id], junction_square)
 # plt.show()
 
 plt.savefig(os.path.join(output_dir_name, 'inlet_manifold_pressure.png'))

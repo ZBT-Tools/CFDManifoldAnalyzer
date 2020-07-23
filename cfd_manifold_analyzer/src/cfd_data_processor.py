@@ -59,6 +59,11 @@ class CFDDataChannel(OutputObject):
     def process(self):
         pass
 
+    def make_interpolation_function(self, data_name='pressure',
+                                    method='linear'):
+        self.data_function[data_name] = \
+            interp1d(self.x, self.data[data_name], kind=method)
+
     def create_coords(self):
         length_vector = self.length * self.direction_vector
         end_vector = self.start_vector + length_vector
@@ -181,32 +186,64 @@ class ManifoldCFDDataChannel(CFDDataChannel):
                  x_range, value_names=('pressure',), name=None):
         super().__init__(diameter, length, start_vector, direction_vector, dx,
                          value_names=value_names, name=name)
-        if not isinstance(x_range, (tuple, list, np.ndarray)):
+        if len(x_range) != 2:
             raise TypeError('argument x_range must be iterable with two '
                             'entries (start, end) of the coordinate range to '
-                            'be manipulated')
+                            'be analyzed')
         # best guess parameters for filtering operations
         self.resolution = 1000
         self.poly_order = 5
         self.window_length = np.int(np.round(self.resolution/10) // 2 * 2 + 1)
+        self.x_range = np.linspace(x_range[0], x_range[1], self.resolution)
 
-    def get_higher_order_min(self, order=2, filter=True, data_name='pressure'):
+    def calculate_gradient(self, order=2, filter_data=True,
+                           data_name='pressure'):
         """
         :param order: order of gradient/derivative
-        :param filter: filter/smooth (with savgol filter) data between each
+        :param filter_data: filter/smooth (with savgol filter) data between each
         manipulation step
         :param data_name: channel data to be manipulated
         :return: 1D-array with local minima of higher order derivatives
         """
-        data = self.data[data_name]
-        if filter is True:
+        if self.data_function[data_name] is None:
+            self.make_interpolation_function(data_name)
+
+        data = self.data_function[data_name](self.x_range)
+        if filter_data is True:
             data = signal.savgol_filter(data, window_length=self.window_length,
                                         polyorder=self.poly_order)
         grad_data = data
         for i in range(order):
             grad_data = np.gradient(grad_data)
+            if filter_data is True:
+                grad_data = \
+                    signal.savgol_filter(grad_data,
+                                         window_length=self.window_length,
+                                         polyorder=self.poly_order)
+        return grad_data, data
 
+    def get_higher_order_min(self, order=2, filter_data=True,
+                             data_name='pressure'):
+        grad_data, data = self.calculate_gradient(order=order,
+                                                  filter_data=filter_data,
+                                                  data_name=data_name)
+        return data[signal.argrelmin(grad_data, order=5)[0]]
 
+    def get_higher_order_max(self, order=2, filter_data=True,
+                             data_name='pressure'):
+        grad_data, data = self.calculate_gradient(order=order,
+                                                  filter_data=filter_data,
+                                                  data_name=data_name)
+        return data[signal.argrelmax(grad_data, order=5)[0]]
+
+    def get_higher_order_minmax(self, order=2, filter_data=True,
+                             data_name='pressure'):
+        grad_data, data = self.calculate_gradient(order=order,
+                                                  filter_data=filter_data,
+                                                  data_name=data_name)
+        data_min = data[signal.argrelmin(grad_data, order=5)[0]]
+        data_max = data[signal.argrelmax(grad_data, order=5)[0]]
+        return np.asarray((data_min, data_max))
 
 
 class CFDMassFlowProcessor(OutputObject):
@@ -301,10 +338,10 @@ class CFDManifoldProcessor(OutputObject):
             start_vector = np.asarray((0.0, geom.manifold_y[i],
                                        geom.bounding_box[-1, idz]))
             direction_vector = np.asarray(mfd_flow_dir)
-            self.manifolds.append(CFDDataChannel(geom.manifold_diameter,
-                                                 geom.manifold_length,
-                                                 start_vector, direction_vector,
-                                                 geom.manifold_dz))
+            self.manifolds.append(ManifoldCFDDataChannel(
+                geom.manifold_diameter, geom.manifold_length, start_vector,
+                direction_vector, geom.manifold_dz,
+                geom.manifold_range))
         # initialize mass flow data
         self.mass_flow_data = CFDMassFlowProcessor(self.mass_flow_file_path,
                                                    self.output_dir)
