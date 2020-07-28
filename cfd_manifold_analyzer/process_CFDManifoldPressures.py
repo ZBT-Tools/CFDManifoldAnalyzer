@@ -238,7 +238,7 @@ for i in range(geom.n_manifolds):
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
     lin_seg_interceptions = find_linear_segment_interceptions(tangent_coeffs)
     tangent_coeffs_2 = \
-        np.asarray((max_tangent_coeff[1:], min_tangent_coeff[:-1]))
+        np.asarray((max_tangent_coeff[:-1], min_tangent_coeff[1:]))
     tangent_coeffs_2 = tangent_coeffs_2.transpose((2, 0, 1))
     lin_seg_interceptions_2 = \
         find_linear_segment_interceptions(tangent_coeffs_2)
