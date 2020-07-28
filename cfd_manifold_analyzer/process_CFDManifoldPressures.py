@@ -79,6 +79,21 @@ def linear_coefficients(x, y, method='2-points'):
         raise NotImplementedError
 
 
+def find_linear_segment_interceptions(coeffs):
+    coeffs = np.asarray(coeffs)
+    if not coeffs.shape[0] == 2 and not coeffs.shape[0] == 2:
+        raise ValueError('parameter coeffs must be numpy array with the first '
+                         'two dimensions of shape (2,2)')
+    m = coeffs[1]
+    b = coeffs[0]
+    x = (b[1] - b[0])/(m[0] - m[1])
+    y = m[0] * x + b[0]
+    return np.array((x, y))
+
+
+def polyval(x, coeffs):
+    return np.polynomial.polynomial.polyval(x, coeffs)
+
 # specify directory and file names
 output_dir_name = os.path.join(file_names.dir_name, file_names.output_dir)
 manifold_file_name = os.path.join(output_dir_name,
@@ -149,7 +164,7 @@ for i in range(geom.n_manifolds):
          * geom.manifold_flow_direction[i][-1]) / (v1[i] ** 2.0)
 
 # test
-n_res = 1000
+n_res = 10000
 z_manifold_min = []
 z_manifold_max = []
 p_manifold_min = []
@@ -160,7 +175,7 @@ zeta_junction_idelchik = []
 zeta_junction_fit = []
 velocity_ratio = []
 for i in range(geom.n_manifolds):
-    z_manifold_res = np.linspace(z_junction_in[0] - 0.02, 
+    z_manifold_res = np.linspace(z_junction_in[0] - 0.01,
                                  z_junction_out[-1] + 0.007, n_res)
     # z_manifold_res = np.linspace(z_min, z_max, n_res)
     p_manifold_res = p_manifold_function[i](z_manifold_res)
@@ -169,8 +184,8 @@ for i in range(geom.n_manifolds):
     fig, ax1 = plt.subplots()
     wl = np.int(np.round(n_res/10) // 2 * 2 + 1)
     po = 5
-    p_test = signal.savgol_filter(p_test, window_length=wl, polyorder=po)
     ax1.plot(z_test, p_test)
+    p_test = signal.savgol_filter(p_test, window_length=wl, polyorder=po)
     ax1.grid(True, axis='x')
     ax1.set_xticks(np.arange(-0.02, z_test[-1], 0.01))
     grad_p_test = np.gradient(p_test)
@@ -181,7 +196,7 @@ for i in range(geom.n_manifolds):
     #                                     window_length=wl, polyorder=po)
     ax2 = ax1.twinx()
     ax2.plot(z_test, grad_p_test)
-    plt.show()
+    # plt.show()
 
     id_manifold_min = signal.argrelmin(grad_p_test, order=5)[0]
     id_manifold_max = signal.argrelmax(grad_p_test, order=5)[0]
@@ -193,27 +208,42 @@ for i in range(geom.n_manifolds):
     z_manifold_max.append(z_manifold_res[id_manifold_min])
     min_tangent_coeff = []
     max_tangent_coeff = []
+    width = 1
     for j in range(len(id_manifold_min)):
-        z = (z_manifold_res[id_manifold_min[j] - 3],
-             z_manifold_res[id_manifold_min[j] + 3])
-        p = (p_manifold_res[id_manifold_min[j] - 3],
-             p_manifold_res[id_manifold_min[j] + 3])
+        z = (z_manifold_res[id_manifold_min[j] - width],
+             z_manifold_res[id_manifold_min[j] + width])
+        p = (p_manifold_res[id_manifold_min[j] - width],
+             p_manifold_res[id_manifold_min[j] + width])
         min_tangent_coeff.append(linear_coefficients(z, p))
     for j in range(len(id_manifold_max)):
-        z = (z_manifold_res[id_manifold_max[j] - 3],
-             z_manifold_res[id_manifold_max[j] + 3])
-        p = (p_manifold_res[id_manifold_max[j] - 3],
-             p_manifold_res[id_manifold_max[j] + 3])
+        z = (z_manifold_res[id_manifold_max[j] - width],
+             z_manifold_res[id_manifold_max[j] + width])
+        p = (p_manifold_res[id_manifold_max[j] - width],
+             p_manifold_res[id_manifold_max[j] + width])
         max_tangent_coeff.append(linear_coefficients(z, p))
     min_tangent_coeff = np.asarray(min_tangent_coeff)
     max_tangent_coeff = np.asarray(max_tangent_coeff)
-    for j in range(len(id_manifold_min)):
-
-
-
-
-
-
+    width = 0.02
+    for j in range(len(min_tangent_coeff)):
+        x_min = z_manifold_res[id_manifold_min[j]]
+        x = np.array((x_min - width * 0.5, x_min + width * 0.5))
+        y = polyval(x, min_tangent_coeff[j])
+        ax1.plot(x, y)
+    for j in range(len(max_tangent_coeff)):
+        x_max = z_manifold_res[id_manifold_max[j]]
+        x = np.array((x_max - width * 0.5, x_max + width * 0.5))
+        y = polyval(x, max_tangent_coeff[j])
+        ax1.plot(x, y)
+    tangent_coeffs_1 = np.asarray((min_tangent_coeff, max_tangent_coeff))
+    tangent_coeffs_2 = \
+        np.asarray((max_tangent_coeff[:-1], min_tangent_coeff[1:]))
+    tangent_coeffs = \
+        np.concatenate((tangent_coeffs_1, tangent_coeffs_2), axis=1)
+    tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
+    lin_seg_interceptions = find_linear_segment_interceptions(tangent_coeffs)
+    lin_seg_interceptions = np.sort(lin_seg_interceptions, axis=1)
+    ax1.plot(lin_seg_interceptions[0], lin_seg_interceptions[1])
+    plt.show()
     dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
     zeta_junction_2.append((2.0 * dp_junction_2[i] / density
                             - (v2[i] ** 2.0 - v1[i] ** 2.0)
@@ -291,19 +321,14 @@ lin_coeffs = \
                                       p_channel[i][100:-100], 1)
      for i in range(geom.n_channels)]
 
-
-def poly(x, coeffs):
-    return np.polynomial.polynomial.polyval(x, coeffs)
-
 # chl_id = [0, 10, 20, 30, 39]
-
 
 y_channel_in = -manifold_height * 0.5
 p_channel_linear_in = \
-    [poly(y_channel_in, lin_coeffs[i]) for i in range(geom.n_channels)]
+    [polyval(y_channel_in, lin_coeffs[i]) for i in range(geom.n_channels)]
 y_channel_out = y_channel[-1] + manifold_height * 0.5
 p_channel_linear_out = \
-    [poly(y_channel_out, lin_coeffs[i]) for i in range(geom.n_channels)]
+    [polyval(y_channel_out, lin_coeffs[i]) for i in range(geom.n_channels)]
 dp_junction_channel_in = [p_channel_linear_in[i] - p_junction_in[1][i]
                           for i in range(geom.n_channels)]
 
@@ -311,7 +336,7 @@ fig = plt.figure(dpi=dpi, figsize=figsize)
 # colors = ['k', 'b', 'r', 'g', 'm']
 for i in range(geom.n_channels):
     plt.plot(y_channel[i], p_channel[i], linestyle='-')
-    plt.plot(y_channel[i], poly(y_channel[i], lin_coeffs[i]),
+    plt.plot(y_channel[i], polyval(y_channel[i], lin_coeffs[i]),
              linestyle=':')
 plt.show()
 
@@ -321,7 +346,7 @@ y_channel_range = y_channel[:, :100]
 p_channel_range = p_channel[:, :100]
 for i in range(geom.n_channels):
     plt.plot(y_channel_range[i], p_channel_range[i], linestyle='-')
-    plt.plot(y_channel_range[i], poly(y_channel_range[i], lin_coeffs[i]),
+    plt.plot(y_channel_range[i], polyval(y_channel_range[i], lin_coeffs[i]),
              linestyle=':')
 plt.show()
 
@@ -332,7 +357,7 @@ p_channel_range = p_channel[:, -100:]
 for i in range(geom.n_channels):
     plt.plot(y_channel_range[i], p_channel_range[i], 
              linestyle='-')
-    plt.plot(y_channel_range[i], poly(y_channel_range[i], lin_coeffs[i]),
+    plt.plot(y_channel_range[i], polyval(y_channel_range[i], lin_coeffs[i]),
              linestyle=':')
 plt.show()
 
