@@ -224,25 +224,31 @@ for i in range(geom.n_manifolds):
     min_tangent_coeff = np.asarray(min_tangent_coeff)
     max_tangent_coeff = np.asarray(max_tangent_coeff)
     width = 0.02
-    for j in range(len(min_tangent_coeff)):
-        x_min = z_manifold_res[id_manifold_min[j]]
-        x = np.array((x_min - width * 0.5, x_min + width * 0.5))
-        y = polyval(x, min_tangent_coeff[j])
-        ax1.plot(x, y)
-    for j in range(len(max_tangent_coeff)):
-        x_max = z_manifold_res[id_manifold_max[j]]
-        x = np.array((x_max - width * 0.5, x_max + width * 0.5))
-        y = polyval(x, max_tangent_coeff[j])
-        ax1.plot(x, y)
-    tangent_coeffs_1 = np.asarray((min_tangent_coeff, max_tangent_coeff))
-    tangent_coeffs_2 = \
-        np.asarray((max_tangent_coeff[:-1], min_tangent_coeff[1:]))
-    tangent_coeffs = \
-        np.concatenate((tangent_coeffs_1, tangent_coeffs_2), axis=1)
+    # for j in range(len(min_tangent_coeff)):
+    #     x_min = z_manifold_res[id_manifold_min[j]]
+    #     x = np.array((x_min - width * 0.5, x_min + width * 0.5))
+    #     y = polyval(x, min_tangent_coeff[j])
+    #     ax1.plot(x, y)
+    # for j in range(len(max_tangent_coeff)):
+    #     x_max = z_manifold_res[id_manifold_max[j]]
+    #     x = np.array((x_max - width * 0.5, x_max + width * 0.5))
+    #     y = polyval(x, max_tangent_coeff[j])
+    #     ax1.plot(x, y)
+    tangent_coeffs = np.asarray((min_tangent_coeff, max_tangent_coeff))
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
     lin_seg_interceptions = find_linear_segment_interceptions(tangent_coeffs)
-    lin_seg_interceptions = np.sort(lin_seg_interceptions, axis=1)
+    tangent_coeffs_2 = \
+        np.asarray((max_tangent_coeff[1:], min_tangent_coeff[:-1]))
+    tangent_coeffs_2 = tangent_coeffs_2.transpose((2, 0, 1))
+    lin_seg_interceptions_2 = \
+        find_linear_segment_interceptions(tangent_coeffs_2)
+    lin_seg_interceptions = \
+        np.concatenate((lin_seg_interceptions, lin_seg_interceptions_2), axis=1)
+    id = lin_seg_interceptions[0].argsort()
+    lin_seg_interceptions = \
+        lin_seg_interceptions[:, id]
     ax1.plot(lin_seg_interceptions[0], lin_seg_interceptions[1])
+
     plt.show()
     dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
     zeta_junction_2.append((2.0 * dp_junction_2[i] / density
