@@ -105,15 +105,15 @@ class LinearCFDDataChannel(CFDDataChannel):
         y = np.asarray(y)
         if x.shape != y.shape:
             raise ValueError('x and y must have equal shapes')
-        if np.dim(x) != 1 or x.shape[-1] < 2:
+        if np.ndim(x) != 1 or x.shape[-1] < 2:
             raise ValueError('x and y must be one-dimensional array with at '
                              'least two entries')
         if method == '2-points' or x.shape[-1] == 2:
-            m = (y[2] - y[1]) / (x[2] - x[1])
-            b = y[1] - m * x[1]
+            m = (y[1] - y[0]) / (x[1] - x[0])
+            b = y[0] - m * x[0]
             return np.asarray((b, m))
         elif method == 'polyfit':
-            np.polynomial.polynomial.polyfit(x, y, 1)
+            return np.polynomial.polynomial.polyfit(x, y, 1)
         else:
             raise NotImplementedError
 
@@ -237,7 +237,7 @@ class ManifoldCFDDataChannel(CFDDataChannel):
         return data[signal.argrelmax(grad_data, order=5)[0]]
 
     def get_higher_order_minmax(self, order=2, filter_data=True,
-                             data_name='pressure'):
+                                data_name='pressure'):
         grad_data, data = self.calculate_gradient(order=order,
                                                   filter_data=filter_data,
                                                   data_name=data_name)

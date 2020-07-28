@@ -61,6 +61,24 @@ def calc_pressure_drop(velocity, density, zeta, flow_direction=1):
     return (a + b) * density * 0.5
 
 
+def linear_coefficients(x, y, method='2-points'):
+    x = np.asarray(x)
+    y = np.asarray(y)
+    if x.shape != y.shape:
+        raise ValueError('x and y must have equal shapes')
+    if np.ndim(x) != 1 or x.shape[-1] < 2:
+        raise ValueError('x and y must be one-dimensional array with at '
+                         'least two entries')
+    if method == '2-points' or x.shape[-1] == 2:
+        m = (y[1] - y[0]) / (x[1] - x[0])
+        b = y[0] - m * x[0]
+        return np.asarray((b, m))
+    elif method == 'polyfit':
+        return np.polynomial.polynomial.polyfit(x, y, 1)
+    else:
+        raise NotImplementedError
+
+
 # specify directory and file names
 output_dir_name = os.path.join(file_names.dir_name, file_names.output_dir)
 manifold_file_name = os.path.join(output_dir_name,
@@ -149,17 +167,18 @@ for i in range(geom.n_manifolds):
     z_test = z_manifold_res # [400:600]
     p_test = p_manifold_res # [400:600]
     fig, ax1 = plt.subplots()
-    ax1.plot(z_test, p_test)
     wl = np.int(np.round(n_res/10) // 2 * 2 + 1)
     po = 5
     p_test = signal.savgol_filter(p_test, window_length=wl, polyorder=po)
+    ax1.plot(z_test, p_test)
     ax1.grid(True, axis='x')
+    ax1.set_xticks(np.arange(-0.02, z_test[-1], 0.01))
     grad_p_test = np.gradient(p_test)
     grad_p_test = signal.savgol_filter(grad_p_test,
                                        window_length=wl, polyorder=po)
-    grad_p_test = np.gradient(grad_p_test)
-    grad_p_test = signal.savgol_filter(grad_p_test,
-                                        window_length=wl, polyorder=po)
+    # grad_p_test = np.gradient(grad_p_test)
+    # grad_p_test = signal.savgol_filter(grad_p_test,
+    #                                     window_length=wl, polyorder=po)
     ax2 = ax1.twinx()
     ax2.plot(z_test, grad_p_test)
     plt.show()
@@ -172,6 +191,28 @@ for i in range(geom.n_manifolds):
     p_manifold_max.append(p_manifold_res[id_manifold_min])
     z_manifold_min.append(z_manifold_res[id_manifold_max])
     z_manifold_max.append(z_manifold_res[id_manifold_min])
+    min_tangent_coeff = []
+    max_tangent_coeff = []
+    for j in range(len(id_manifold_min)):
+        z = (z_manifold_res[id_manifold_min[j] - 3],
+             z_manifold_res[id_manifold_min[j] + 3])
+        p = (p_manifold_res[id_manifold_min[j] - 3],
+             p_manifold_res[id_manifold_min[j] + 3])
+        min_tangent_coeff.append(linear_coefficients(z, p))
+    for j in range(len(id_manifold_max)):
+        z = (z_manifold_res[id_manifold_max[j] - 3],
+             z_manifold_res[id_manifold_max[j] + 3])
+        p = (p_manifold_res[id_manifold_max[j] - 3],
+             p_manifold_res[id_manifold_max[j] + 3])
+        max_tangent_coeff.append(linear_coefficients(z, p))
+    min_tangent_coeff = np.asarray(min_tangent_coeff)
+    max_tangent_coeff = np.asarray(max_tangent_coeff)
+    for j in range(len(id_manifold_min)):
+
+
+
+
+
 
     dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
     zeta_junction_2.append((2.0 * dp_junction_2[i] / density
@@ -203,6 +244,8 @@ pressure_direction = -geom.manifold_flow_direction[mfd_id][-1]
 add_source(p_dyn, dp_dyn, direction=pressure_direction)
 z_dyn = \
     np.append(z_junction_in, z_junction_in[-1] + geom.channel_distance_z)
+
+# p_total = p_manifold[mfd_id] + 0.5 * density * manifold_velocity
 
 dpi = 200
 figsize = (6.4 * 2.0, 4.8 * 2.0)
