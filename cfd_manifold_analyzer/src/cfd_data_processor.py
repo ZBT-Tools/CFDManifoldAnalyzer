@@ -92,15 +92,15 @@ class LinearCFDDataChannel(CFDDataChannel):
                  lin_segments=None, value_names=('pressure',), name=None):
         super().__init__(diameter, length, start_vector, direction_vector, dx,
                          value_names=value_names, name=name)
-        if not isinstance(lin_segments, (tuple, list, np.ndarray)):
-            raise TypeError('argument lin_segments must be iterable with each'
-                            ' entry containing a coordinate pair (start, end) '
-                            'of a channel segment to be linearized')
+        # if not isinstance(lin_segments, (tuple, list, np.ndarray)):
+        #     raise TypeError('argument lin_segments must be iterable with each'
+        #                     ' entry containing a coordinate pair (start, end) '
+        #                     'of a channel segment to be linearized')
         self.lin_segments = lin_segments
         self.lin_coeffs = None
 
     @staticmethod
-    def _linear_coefficients(x, y, method='2-points'):
+    def linear_coefficients(x, y, method='2-points'):
         x = np.asarray(x)
         y = np.asarray(y)
         if x.shape != y.shape:
@@ -109,7 +109,7 @@ class LinearCFDDataChannel(CFDDataChannel):
             raise ValueError('x and y must be one-dimensional array with at '
                              'least two entries')
         if method == '2-points' or x.shape[-1] == 2:
-            m = (y[1] - y[0]) / (x[1] - x[0])
+            m = (y[-1] - y[0]) / (x[-1] - x[0])
             b = y[0] - m * x[0]
             return np.asarray((b, m))
         elif method == 'polyfit':
@@ -123,7 +123,7 @@ class LinearCFDDataChannel(CFDDataChannel):
                             'linear segment of interest for the channel'
         if lin_segments is None:
             if self.lin_segments is None:
-                raise ValueError('either argument lin_segments nor object '
+                raise ValueError('either argument lin_segments or object '
                                  'attribute self.lin_segments must not be None')
             else:
                 lin_segments = self.lin_segments
@@ -144,8 +144,8 @@ class LinearCFDDataChannel(CFDDataChannel):
             idx1 = find_nearest_idx(self.x, seg[1])
 
             lin_coeffs.append(
-                self._linear_coefficients(self.x[idx0:idx1],
-                                          self.data[data_name][idx0:idx1]))
+                self.linear_coefficients(self.x[idx0:idx1],
+                                         self.data[data_name][idx0:idx1]))
         lin_coeffs = np.asarray(lin_coeffs)
         return lin_coeffs
 
@@ -180,7 +180,7 @@ class LinearCFDDataChannel(CFDDataChannel):
                  for i in range(len(x))])
 
 
-class ManifoldCFDDataChannel(CFDDataChannel):
+class ManifoldCFDDataChannel(LinearCFDDataChannel):
 
     def __init__(self, diameter, length, start_vector, direction_vector, dx,
                  x_range, value_names=('pressure',), name=None):
@@ -195,20 +195,22 @@ class ManifoldCFDDataChannel(CFDDataChannel):
         self.poly_order = 5
         self.window_length = np.int(np.round(self.resolution/10) // 2 * 2 + 1)
         self.x_range = np.linspace(x_range[0], x_range[1], self.resolution)
+        self.data_range = np.zeros(self.x_range.shape)
 
-    def calculate_gradient(self, order=2, filter_data=True,
-                           data_name='pressure'):
+    def calculate_data_range(self, data_name='pressure'):
+        if self.data_function[data_name] is None:
+            self.make_interpolation_function(data_name)
+        self.data_range[:] = self.data_function[data_name](self.x_range)
+
+    def calculate_gradient(self, data, order=1, filter_data=True):
         """
+        :param data: 1D numpy array to manipulate
         :param order: order of gradient/derivative
         :param filter_data: filter/smooth (with savgol filter) data between each
         manipulation step
         :param data_name: channel data to be manipulated
         :return: 1D-array with local minima of higher order derivatives
         """
-        if self.data_function[data_name] is None:
-            self.make_interpolation_function(data_name)
-
-        data = self.data_function[data_name](self.x_range)
         if filter_data is True:
             data = signal.savgol_filter(data, window_length=self.window_length,
                                         polyorder=self.poly_order)
@@ -220,30 +222,82 @@ class ManifoldCFDDataChannel(CFDDataChannel):
                     signal.savgol_filter(grad_data,
                                          window_length=self.window_length,
                                          polyorder=self.poly_order)
-        return grad_data, data
+        return grad_data
 
-    def get_higher_order_min(self, order=2, filter_data=True,
-                             data_name='pressure'):
-        grad_data, data = self.calculate_gradient(order=order,
-                                                  filter_data=filter_data,
-                                                  data_name=data_name)
-        return data[signal.argrelmin(grad_data, order=5)[0]]
+    def get_higher_order_min_id(self, order=1, filter_data=True,
+                                data_name='pressure', init_data=True):
+        if init_data:
+            self.calculate_data_range(data_name)
+        grad_data, data = self.calculate_gradient(self.data_range, order=order,
+                                                  filter_data=filter_data)
+        id_min = signal.argrelmin(grad_data, order=5)[0]
+        return np.array((self.x_range[id_min], data[id_min]))
 
-    def get_higher_order_max(self, order=2, filter_data=True,
-                             data_name='pressure'):
-        grad_data, data = self.calculate_gradient(order=order,
-                                                  filter_data=filter_data,
-                                                  data_name=data_name)
-        return data[signal.argrelmax(grad_data, order=5)[0]]
+    def get_higher_order_max_id(self, order=1, filter_data=True,
+                                data_name='pressure', init_data=True):
+        if init_data:
+            self.calculate_data_range(data_name)
+        grad_data, data = self.calculate_gradient(self.data_range, order=order,
+                                                  filter_data=filter_data)
+        return signal.argrelmax(grad_data, order=5)[0]
 
-    def get_higher_order_minmax(self, order=2, filter_data=True,
-                                data_name='pressure'):
-        grad_data, data = self.calculate_gradient(order=order,
-                                                  filter_data=filter_data,
-                                                  data_name=data_name)
-        data_min = data[signal.argrelmin(grad_data, order=5)[0]]
-        data_max = data[signal.argrelmax(grad_data, order=5)[0]]
-        return np.asarray((data_min, data_max))
+    def get_higher_order_min(self, order=1, filter_data=True,
+                             data_name='pressure', init_data=True):
+        id_min = self.get_higher_order_min_id(order=order,
+                                              filter_data=filter_data,
+                                              data_name=data_name,
+                                              init_data=init_data)
+        return np.array((self.x_range[id_min], self.data_range[id_min]))
+
+    def get_higher_order_max(self, order=1, filter_data=True,
+                             data_name='pressure', init_data=True):
+        id_max = self.get_higher_order_max_id(order=order,
+                                              filter_data=filter_data,
+                                              data_name=data_name,
+                                              init_data=init_data)
+        return np.array((self.x_range[id_max], self.data_range[id_max]))
+
+    @staticmethod
+    def calc_linear_interceptions(coeffs):
+        coeffs = np.asarray(coeffs)
+        if not coeffs.shape[0] == 2 and not coeffs.shape[0] == 2:
+            raise ValueError(
+                'parameter coeffs must be numpy array with the first '
+                'two dimensions of shape (2,2)')
+        m = coeffs[1]
+        b = coeffs[0]
+        x = (b[1] - b[0]) / (m[0] - m[1])
+        y = m[0] * x + b[0]
+        return np.array((x, y))
+
+    def calc_linear_coeffs_from_id(self, arg_id, id_width=1):
+        linear_coeffs = []
+        for i in range(len(arg_id)):
+            x = np.asarray(self.x_range[arg_id[i] - id_width],
+                           self.x_range[arg_id[i] + id_width])
+            y = np.asarray(self.data_range[arg_id[i] - id_width],
+                           self.data_range[arg_id[i] + id_width])
+            linear_coeffs.append(self.linear_coefficients(x, y))
+        return np.asarray(linear_coeffs)
+
+    def calc_linear_segment_interceptions(self, id_width=1, order='minmax'):
+        grad_order = 1
+        id_linear_min = self.get_higher_order_min(order=grad_order)
+        id_linear_max = self.get_higher_order_max(order=grad_order)
+        linear_min_coeffs = \
+            self.calc_linear_coeffs_from_id(id_linear_min, id_width=id_width)
+        linear_max_coeffs = \
+            self.calc_linear_coeffs_from_id(id_linear_max, id_width=id_width)
+        if order == 'minmax':
+            linear_coeffs = np.asarray((linear_min_coeffs, linear_max_coeffs))
+        elif order == 'maxmin':
+            linear_coeffs = np.asarray((linear_max_coeffs, linear_min_coeffs))
+        else:
+            raise ValueError('parameter order must be "minmax" or "maxmin"')
+
+        return linear_coeffs.transpose((2, 0, 1))
+
+
 
 
 class CFDMassFlowProcessor(OutputObject):
@@ -442,13 +496,13 @@ class CFDManifoldProcessor(OutputObject):
         for i, channel in enumerate(self.channels):
             channel.data[data_name] = channel_pressure[i]
         for i, manifold in enumerate(self.manifolds):
-            manifold.data[data_name] = manifold_pressure[i]
+            manifold.data_range[data_name] = manifold_pressure[i]
 
     def make_interpolation_functions(self, data_name='pressure'):
         for chl in self.channels:
             chl.data_function[data_name] = interp1d(chl.x, chl.data[data_name])
         for mfd in self.manifolds:
-            mfd.data_function[data_name] = interp1d(mfd.x, mfd.data[data_name])
+            mfd.data_function[data_name] = interp1d(mfd.x, mfd.data_range[data_name])
 
     def save_collection(self, collection_name):
         if collection_name == 'channel':
@@ -481,7 +535,7 @@ class CFDManifoldProcessor(OutputObject):
                            ylabels='Pressure [Pa]', marker=None, **kwargs)
         # plot manifold pressures
         x = self.manifolds[0].cord_length
-        y = [manifold.data['pressure'] for manifold in self.manifolds]
+        y = [manifold.data_range['pressure'] for manifold in self.manifolds]
         file_path = os.path.join(self.output_dir, 'manifold_pressure.png')
         self.create_figure(file_path, x, y, xlabels='Length [m]',
                            ylabels='Pressure [Pa]', marker='', **kwargs)

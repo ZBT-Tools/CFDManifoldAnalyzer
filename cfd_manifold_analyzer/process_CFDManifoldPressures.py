@@ -5,10 +5,12 @@ from scipy import interpolate
 from scipy import signal
 import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator)
+import math
 
 # local module imports
 from cfd_manifold_analyzer.settings import file_names
 from cfd_manifold_analyzer.settings import geometry as geom
+from cfd_manifold_analyzer.settings import physical_properties as props
 
 
 def add_source(var, source, direction=1, tri_mtx=None):
@@ -149,18 +151,15 @@ for i in range(geom.n_manifolds):
     add_source(manifold_mass_flows[i], -channel_mass_flows, 
                direction=1)
 
-density = 1.2044
-manifold_width = 0.0125
-manifold_height = 0.0075
-manifold_area = manifold_width * manifold_height
-manifold_volume_flow = manifold_mass_flows / density
+manifold_area = geom.manifold_diameter ** 2.0 * 0.25 * math.pi
+manifold_volume_flow = manifold_mass_flows / props.density
 manifold_velocity = manifold_volume_flow / manifold_area
 v1 = manifold_velocity[:, :-1]
 v2 = manifold_velocity[:, 1:]
 zeta_junction = np.zeros(v1.shape)
 for i in range(geom.n_manifolds):
     zeta_junction[i] = \
-        (2.0 * dp_junction[i] / density - (v2[i] ** 2.0 - v1[i] ** 2.0)
+        (2.0 * dp_junction[i] / props.density - (v2[i] ** 2.0 - v1[i] ** 2.0)
          * geom.manifold_flow_direction[i][-1]) / (v1[i] ** 2.0)
 
 # test
@@ -174,6 +173,7 @@ zeta_junction_2 = []
 zeta_junction_idelchik = []
 zeta_junction_fit = []
 velocity_ratio = []
+lin_seg_interceptions = []
 for i in range(geom.n_manifolds):
     z_manifold_res = np.linspace(z_junction_in[0] - 0.01,
                                  z_junction_out[-1] + 0.007, n_res)
@@ -236,22 +236,25 @@ for i in range(geom.n_manifolds):
     #     ax1.plot(x, y)
     tangent_coeffs = np.asarray((min_tangent_coeff, max_tangent_coeff))
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
-    lin_seg_interceptions = find_linear_segment_interceptions(tangent_coeffs)
-    tangent_coeffs_2 = \
-        np.asarray((max_tangent_coeff[:-1], min_tangent_coeff[1:]))
-    tangent_coeffs_2 = tangent_coeffs_2.transpose((2, 0, 1))
-    lin_seg_interceptions_2 = \
-        find_linear_segment_interceptions(tangent_coeffs_2)
-    lin_seg_interceptions = \
-        np.concatenate((lin_seg_interceptions, lin_seg_interceptions_2), axis=1)
-    id = lin_seg_interceptions[0].argsort()
-    lin_seg_interceptions = \
-        lin_seg_interceptions[:, id]
-    ax1.plot(lin_seg_interceptions[0], lin_seg_interceptions[1])
+    lin_seg_points_min = find_linear_segment_interceptions(tangent_coeffs)
+    lin_seg_interceptions.append(lin_seg_points_min)
+    # tangent_coeffs = \
+    #     np.asarray((max_tangent_coeff[1:], min_tangent_coeff[:-1]))
+    tangent_coeffs = \
+        np.asarray((min_tangent_coeff[:-1], max_tangent_coeff[1:]))
+    tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
+    lin_seg_points_max = \
+        find_linear_segment_interceptions(tangent_coeffs)
+    lin_seg_points = \
+        np.concatenate((lin_seg_points_min, lin_seg_points_max), axis=1)
+    id_sort = lin_seg_points[0].argsort()
+    lin_seg_points = \
+        lin_seg_points[:, id_sort]
+    ax1.plot(lin_seg_points[0], lin_seg_points[1])
 
     plt.show()
     dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
-    zeta_junction_2.append((2.0 * dp_junction_2[i] / density
+    zeta_junction_2.append((2.0 * dp_junction_2[i] / props.density
                             - (v2[i] ** 2.0 - v1[i] ** 2.0)
                             * geom.manifold_flow_direction[i][-1])
                            / (v1[i] ** 2.0))
@@ -270,7 +273,7 @@ for i in range(geom.n_manifolds):
 
 mfd_id = 0
 # pressure due to changes in dynamic pressure in manifold 1
-dp_dyn = calc_pressure_drop(manifold_velocity[mfd_id], density, -0.01,
+dp_dyn = calc_pressure_drop(manifold_velocity[mfd_id], props.density, -0.01,
                             geom.manifold_flow_direction[mfd_id][-1])
 print(dp_dyn)
 p_dyn = np.zeros(manifold_velocity[mfd_id].shape)
@@ -329,14 +332,20 @@ lin_coeffs = \
 
 # chl_id = [0, 10, 20, 30, 39]
 
-y_channel_in = -manifold_height * 0.5
+y_channel_in = geom.manifold_y[0] - geom.manifold_diameter * 0.5
 p_channel_linear_in = \
     [polyval(y_channel_in, lin_coeffs[i]) for i in range(geom.n_channels)]
-y_channel_out = y_channel[-1] + manifold_height * 0.5
+y_channel_out = geom.manifold_y[0] + geom.manifold_diameter * 0.5
 p_channel_linear_out = \
     [polyval(y_channel_out, lin_coeffs[i]) for i in range(geom.n_channels)]
 dp_junction_channel_in = [p_channel_linear_in[i] - p_junction_in[1][i]
                           for i in range(geom.n_channels)]
+
+fig, ax = plt.subplots(dpi=dpi, figsize=figsize)
+x = lin_seg_interceptions[mfd_id][0]
+ax.plot(x, lin_seg_interceptions[mfd_id][1], linestyle='-')
+ax.plot(x, p_channel_linear_in, linestyle=':')
+plt.show()
 
 fig = plt.figure(dpi=dpi, figsize=figsize)
 # colors = ['k', 'b', 'r', 'g', 'm']
