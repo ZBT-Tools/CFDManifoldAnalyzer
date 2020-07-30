@@ -237,6 +237,8 @@ for i in range(geom.n_manifolds):
     tangent_coeffs = np.asarray((min_tangent_coeff, max_tangent_coeff))
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
     lin_seg_points_min = find_linear_segment_interceptions(tangent_coeffs)
+    ax1.plot(lin_seg_points_min[0], lin_seg_points_min[1])
+
     lin_seg_interceptions.append(lin_seg_points_min)
     # tangent_coeffs = \
     #     np.asarray((max_tangent_coeff[1:], min_tangent_coeff[:-1]))
@@ -250,7 +252,7 @@ for i in range(geom.n_manifolds):
     id_sort = lin_seg_points[0].argsort()
     lin_seg_points = \
         lin_seg_points[:, id_sort]
-    ax1.plot(lin_seg_points[0], lin_seg_points[1])
+    # ax1.plot(lin_seg_points[0], lin_seg_points[1])
 
     plt.show()
     dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
