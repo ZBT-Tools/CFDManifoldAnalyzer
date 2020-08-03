@@ -294,8 +294,8 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
             linear_coeffs = np.asarray((linear_max_coeffs, linear_min_coeffs))
         else:
             raise ValueError('parameter order must be "minmax" or "maxmin"')
-
-        return linear_coeffs.transpose((2, 0, 1))
+        linear_coeffs = linear_coeffs.transpose((2, 0, 1))
+        return self.calc_linear_interceptions(linear_coeffs)
 
 
 class CFDMassFlowProcessor(OutputObject):
