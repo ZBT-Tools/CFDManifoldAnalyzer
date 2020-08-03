@@ -298,8 +298,6 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
         return linear_coeffs.transpose((2, 0, 1))
 
 
-
-
 class CFDMassFlowProcessor(OutputObject):
     def __init__(self, file_path, output_dir, name=None):
         super().__init__(name)

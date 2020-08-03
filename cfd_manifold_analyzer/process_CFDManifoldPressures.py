@@ -169,13 +169,15 @@ z_manifold_max = []
 p_manifold_min = []
 p_manifold_max = []
 dp_junction_2 = []
+dp_junction_3 = []
 zeta_junction_2 = []
+zeta_junction_3 = []
 zeta_junction_idelchik = []
 zeta_junction_fit = []
 velocity_ratio = []
 lin_seg_interceptions = []
 for i in range(geom.n_manifolds):
-    z_manifold_res = np.linspace(z_junction_in[0] - 0.01,
+    z_manifold_res = np.linspace(z_junction_in[0] - 0.02,
                                  z_junction_out[-1] + 0.007, n_res)
     # z_manifold_res = np.linspace(z_min, z_max, n_res)
     p_manifold_res = p_manifold_function[i](z_manifold_res)
@@ -206,6 +208,11 @@ for i in range(geom.n_manifolds):
     p_manifold_max.append(p_manifold_res[id_manifold_min])
     z_manifold_min.append(z_manifold_res[id_manifold_max])
     z_manifold_max.append(z_manifold_res[id_manifold_min])
+    # dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
+    # zeta_junction_2.append((2.0 * dp_junction_2[i] / props.density
+    #                         - (v2[i] ** 2.0 - v1[i] ** 2.0)
+    #                         * geom.manifold_flow_direction[i][-1])
+    #                        / (v1[i] ** 2.0))
     min_tangent_coeff = []
     max_tangent_coeff = []
     width = 1
@@ -234,14 +241,14 @@ for i in range(geom.n_manifolds):
     #     x = np.array((x_max - width * 0.5, x_max + width * 0.5))
     #     y = polyval(x, max_tangent_coeff[j])
     #     ax1.plot(x, y)
-    tangent_coeffs = np.asarray((min_tangent_coeff, max_tangent_coeff))
+    tangent_coeffs = np.asarray((min_tangent_coeff, max_tangent_coeff[:-1]))
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
     lin_seg_points_min = find_linear_segment_interceptions(tangent_coeffs)
     lin_seg_interceptions.append(lin_seg_points_min)
     # tangent_coeffs = \
-    #     np.asarray((max_tangent_coeff[1:], min_tangent_coeff[:-1]))
+    #     np.asarray((min_tangent_coeff[1:], max_tangent_coeff[:-1]))
     tangent_coeffs = \
-        np.asarray((min_tangent_coeff[:-1], max_tangent_coeff[1:]))
+        np.asarray((min_tangent_coeff, max_tangent_coeff[1:]))
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
     lin_seg_points_max = \
         find_linear_segment_interceptions(tangent_coeffs)
@@ -251,13 +258,13 @@ for i in range(geom.n_manifolds):
     lin_seg_points = \
         lin_seg_points[:, id_sort]
     ax1.plot(lin_seg_points[0], lin_seg_points[1])
-
     plt.show()
-    dp_junction_2.append(p_manifold_max[i] - p_manifold_min[i])
-    zeta_junction_2.append((2.0 * dp_junction_2[i] / props.density
-                            - (v2[i] ** 2.0 - v1[i] ** 2.0)
-                            * geom.manifold_flow_direction[i][-1])
-                           / (v1[i] ** 2.0))
+    # dp_junction_3.append(lin_seg_points_max[1] - lin_seg_points_min[1])
+    # zeta_junction_3.append((2.0 * dp_junction_3[i] / props.density
+    #                         - (v2[i] ** 2.0 - v1[i] ** 2.0)
+    #                         * geom.manifold_flow_direction[i][-1])
+    #                        / (v1[i] ** 2.0))
+
 # zeta_junction_2 = 2.0 * dp_junction_2 / density \
 #     / (v1[:-1] ** 2.0)
     velocity_ratio.append(v2[i]/v1[i])
@@ -292,6 +299,7 @@ fig = plt.figure(dpi=dpi, figsize=figsize)
 plt.plot(z_junction, zeta_junction[mfd_id], 'k.')
 plt.plot(z_junction, zeta_junction_2[mfd_id], 'r.')
 plt.plot(z_junction, zeta_junction_idelchik[mfd_id], 'b.')
+plt.plot(z_junction, zeta_junction_3[mfd_id], 'g.')
 plt.show()
 plt.savefig(os.path.join(output_dir_name, 'inlet_x_zeta_junction_manifold.png'))
 
