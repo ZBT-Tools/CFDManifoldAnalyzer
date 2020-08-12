@@ -4,11 +4,12 @@ import pandas as pd
 from scipy.interpolate import griddata, interp1d
 from scipy import signal
 import os
-import timeit
+import re
 from ..settings import file_names
 from ..settings import geometry as geom
 from .output import OutputObject
 from . import constants
+from abc import ABC, abstractmethod
 
 
 def find_nearest_idx(array, value):
@@ -298,28 +299,29 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
         return self.calc_linear_interceptions(linear_coeffs)
 
 
-class CFDMassFlowProcessor(OutputObject):
-    def __init__(self, file_path, output_dir, name=None):
+class CFDMassFlowProcessor(OutputObject, ABC):
+
+    def __new__(cls, data, output_dir, name=None):
+
+        if os.path.isfile(data):
+            return super(CFDMassFlowProcessor,
+                         cls).__new__(CFDMassFlowFileProcessor)
+        elif isinstance(data, np.ndarray):
+            return super(CFDMassFlowProcessor,
+                         cls).__new__(CFDMassFlowArrayProcessor)
+        else:
+            raise NotImplementedError
+
+    def __init__(self, data, output_dir, name=None):
         super().__init__(name)
-        self.file_path = file_path
         self.output_dir = output_dir
-        self.mass_flow_name = file_names.mass_flow_name
-        self.total_mass_flow_name = file_names.total_mass_flow_name
         self.n_channels = None
         self.mass_flows = None
         self.total_mass_flow = 0.0
 
-    def load_2d_data(self):
-        return pd.read_csv(self.file_path, sep='\t', header=[0, 1])
-
+    @abstractmethod
     def process(self):
-        cfd_data_2d = self.load_2d_data()
-        self.mass_flows = \
-            cfd_data_2d[self.mass_flow_name].iloc[-2].to_numpy()
-        self.n_channels = range(len(self.mass_flows))
-        self.total_mass_flow = \
-            cfd_data_2d[self.total_mass_flow_name].iloc[-2][0]
-        return self.mass_flows
+        pass
 
     def save(self, name='mass_flow_data', as_ascii=True):
         if as_ascii:
@@ -335,12 +337,42 @@ class CFDMassFlowProcessor(OutputObject):
                                   colormap=colormap, ax=ax, **kwargs)
 
 
+class CFDMassFlowFileProcessor(CFDMassFlowProcessor):
+    def __init__(self, data, output_dir, name=None):
+        super().__init__(output_dir, name)
+        self.file_path = data
+        self.mass_flow_name = file_names.mass_flow_name
+        self.total_mass_flow_name = file_names.total_mass_flow_name
+
+    def load_2d_data(self):
+        return pd.read_csv(self.file_path, sep='\t', header=[0, 1])
+
+    def process(self):
+        cfd_data_2d = self.load_2d_data()
+        self.mass_flows = \
+            cfd_data_2d[self.mass_flow_name].iloc[-2].to_numpy()
+        self.n_channels = len(self.mass_flows)
+        self.total_mass_flow = \
+            cfd_data_2d[self.total_mass_flow_name].iloc[-2][0]
+        return self.mass_flows
+
+
+class CFDMassFlowArrayProcessor(CFDMassFlowProcessor):
+    def __init__(self, data, output_dir, name=None):
+        super().__init__(output_dir, name)
+        self.mass_flows[:] = data
+
+    def process(self):
+        self.n_channels = len(self.mass_flows)
+        self.total_mass_flow = np.sum(self.mass_flows)
+        return self.mass_flows
+
+
 class CFDManifoldProcessor(OutputObject):
-    def __init__(self, pressure_file_path, mass_flow_file_path,
+    def __init__(self, pressure_file_path, mass_flow_data,
                  output_dir, name=None):
         super().__init__(name)
         self.pressure_file_path = pressure_file_path
-        self.mass_flow_file_path = mass_flow_file_path
         self.output_dir = output_dir
         # create output folder
         if not os.path.isdir(output_dir):
@@ -395,8 +427,8 @@ class CFDManifoldProcessor(OutputObject):
                 direction_vector, geom.manifold_dz,
                 geom.manifold_range))
         # initialize mass flow data
-        self.mass_flow_data = CFDMassFlowProcessor(self.mass_flow_file_path,
-                                                   self.output_dir)
+        self.mass_flow_data = \
+            CFDMassFlowProcessor(mass_flow_data, self.output_dir)
 
         # status flag if data has been processed
         self.is_processed = False
@@ -547,4 +579,58 @@ class CFDManifoldProcessor(OutputObject):
                            ylabels='Normalized Mass Flow [-]', **kwargs)
 
 
+class CFDTJunctionProcessor(CFDManifoldProcessor):
+    def __init__(self, pressure_file_path, mass_flow_data,
+                 output_dir, name=None):
+        super().__init__(pressure_file_path, mass_flow_data,
+                         output_dir, name)
+        self.coordinate_name = "-coordinate"
+        self.velocity_name = "-velocity"
+        self.coordinates = ('x', 'y', 'z')
 
+    def load_3d_data(self, processor_split=True, pattern='proc_'):
+        path = os.path.abspath(self.pressure_file_path)
+        if processor_split:
+            if pattern in self.pressure_file_path:
+                # find all processor-divided pressure files
+                dir_entries = os.listdir(os.path.dirname(path))
+                pressure_files = \
+                    [os.path.abspath(entry) for entry in dir_entries
+                     if pattern in entry]
+                # get column names from first file
+                column_names = pd.read_csv(pressure_files[0], sep=',|, ',
+                                           header=[1], nrows=0).columns.tolist()
+                # replace column names for coordinates and velocity
+                coordinate_ids = (1, 2, 3)
+                velocity_ids = (7, 8, 9)
+                for i in range(len(self.coordinates)):
+                    column_names[coordinate_ids[i]] = \
+                        self.coordinates[i] + self.coordinate_name
+                    column_names[velocity_ids[i]] = \
+                        self.coordinates[i] + self.velocity_name
+                # load all files as dataframes
+                df_list = [pd.read_csv(file, header=None, sep='\s+',
+                                       skiprows=[0, 1], names=column_names)
+                           for file in pressure_files]
+                # concatenate all dfs
+                df = pd.concat(df_list, ignore_index=True)
+            else:
+                raise ValueError('pattern "{}" not found in file '
+                                 '"{}"'.format(pattern,
+                                               self.pressure_file_path))
+        else:
+            raise NotImplementedError
+
+    def data_to_array(self):
+        df = self.load_3d_data()
+        # create coordinate and pressure arrays corresponding to coordinate
+        # system configuration in AVL FIRE case setup
+        coordinates = []
+        for i in range(len(self.coordinates)):
+            coordinate = \
+                df[self.coordinates[i] + self.coordinate_name].to_numpy()
+            coordinates.append(coordinate)
+        coord_array = np.asarray(coordinates)
+        value_array = df['pressure'].to_numpy()
+        combined_array = np.asarray(np.vstack((coord_array, value_array)))
+        return combined_array, coord_array, value_array

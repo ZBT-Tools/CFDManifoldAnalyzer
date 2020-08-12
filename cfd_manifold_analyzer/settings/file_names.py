@@ -13,14 +13,14 @@ dir_name = r'C:\Users\feierabend\PycharmProjects\CFDManifoldAnalyzer\data'
 # (without header and values separated by single whitespace character)
 # x1 y1 z1 x2 y2 z2 x3 y3 z3 p1 p2 p3
 avl_fire_file_3d = \
-    'Stack_Ratio2_Re3000_p10_IT_1179_Flow_RelativePressure_Pa.npy'
+    'Plane_Cut_0002_Stack_Ratio2_Re3000_p05_Long_IT_2517_Flow_RelativePressure_Pa.dat'
 
 # 2D results file name
 # Each data row includes all 2D results for the respective iteration; first two
 # rows are headers with result name and dimension in first and second row,
 # respectively. Mass flows for 2D cell selections are usually named "Flow:
 # Mass Flow", however if different please specify name below
-avl_fire_file_2d = '2D_Stack_Ratio2_Re3000_p10_Fire.txt'
+avl_fire_file_2d = 'GuiGraph_02-Case_Stack_Ratio2_Re3000_p05_Long_Fire.txt'
 mass_flow_name = 'Flow:Mass Flow'
 total_mass_flow_name = 'Flow:Total Inlet Massflow'
 

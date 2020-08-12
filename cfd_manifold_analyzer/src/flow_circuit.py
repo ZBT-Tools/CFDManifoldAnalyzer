@@ -51,9 +51,9 @@ class DataFlowCircuit(pemfc.flow_circuit.ParallelFlowCircuit):
         super().update(inlet_mass_flow=inlet_mass_flow)
 
     def set_manifold_pressure(self, cfd_data):
-        cfd_manifolds = cfd_data.manifolds
-        for i, manifold in self.manifolds:
-
+        pass
+        # cfd_manifolds = cfd_data.manifolds
+        # for i, manifold in self.manifolds:
 
     def set_linear_channel_pressure(self, cfd_data):
         cfd_channels = cfd_data.channels

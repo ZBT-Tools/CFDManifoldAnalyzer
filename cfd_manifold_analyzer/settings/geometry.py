@@ -33,16 +33,16 @@ manifold_diameter = 0.01
 channel_diameter = 0.005
 channel_length = manifold_distance - manifold_diameter
 # distance between adjacent channels in z-direction [m]
-channel_distance_z = 0.02
+channel_distance_z = 0.08
 # z-coordinate of first channel [m]
-channel_0_z = 0.005
+channel_0_z = 0.045
 # linear segments of channel pressure distribution
 lin_segments = ((0.011, 0.016), (0.221, 0.226))
 # maximum extensions of coordinates in 3D results cut [m]
 x_ext = (0.0, 0.0)
 y_ext = (0.0 - 0.5 * manifold_diameter,
          manifold_distance + 0.5 * manifold_diameter)
-z_ext = (-0.105, 0.315)
+z_ext = (-0.295, 1.285)
 bounding_box = np.asarray((x_ext, y_ext, z_ext))
 manifold_length = np.abs(bounding_box[-1, 1] - bounding_box[-1, 0])
 

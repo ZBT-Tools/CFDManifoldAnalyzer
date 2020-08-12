@@ -105,7 +105,7 @@ channel_file_name = os.path.join(output_dir_name,
 mass_flow_file_name = os.path.join(output_dir_name,
                                    file_names.mass_flow_data_file + '.npy')
 
-
+print(os.path.abspath(output_dir_name))
 # load manifold data and assign coordinates and pressure values
 # to individual arrays; coordinates correspond to AVL FIRE case setup
 manifold_data = np.load(manifold_file_name)
@@ -177,8 +177,8 @@ zeta_junction_fit = []
 velocity_ratio = []
 lin_seg_interceptions = []
 for i in range(geom.n_manifolds):
-    z_manifold_res = np.linspace(z_junction_in[0] - 0.02,
-                                 z_junction_out[-1] + 0.007, n_res)
+    z_manifold_res = np.linspace(z_junction_in[0] - 0.05,
+                                 z_junction_out[-1] + 0.03, n_res)
     # z_manifold_res = np.linspace(z_min, z_max, n_res)
     p_manifold_res = p_manifold_function[i](z_manifold_res)
     z_test = z_manifold_res # [400:600]
@@ -193,15 +193,15 @@ for i in range(geom.n_manifolds):
     grad_p_test = np.gradient(p_test)
     grad_p_test = signal.savgol_filter(grad_p_test,
                                        window_length=wl, polyorder=po)
-    grad_p_test = np.gradient(grad_p_test)
-    grad_p_test = signal.savgol_filter(grad_p_test,
-                                        window_length=wl, polyorder=po)
+    # grad_p_test = np.gradient(grad_p_test)
+    # grad_p_test = signal.savgol_filter(grad_p_test,
+    #                                     window_length=wl, polyorder=po)
     ax2 = ax1.twinx()
     ax2.plot(z_test, grad_p_test)
-    plt.show()
+    # plt.show()
 
-    id_manifold_min = signal.argrelmin(grad_p_test, order=5)[0]
-    id_manifold_max = signal.argrelmax(grad_p_test, order=5)[0]
+    id_manifold_min = signal.argrelmin(grad_p_test, order=3)[0]
+    id_manifold_max = signal.argrelmax(grad_p_test, order=3)[0]
     print(len(id_manifold_min))
     print(len(id_manifold_max))
     p_manifold_min.append(p_manifold_res[id_manifold_max])
@@ -245,10 +245,10 @@ for i in range(geom.n_manifolds):
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
     lin_seg_points_min = find_linear_segment_interceptions(tangent_coeffs)
     lin_seg_interceptions.append(lin_seg_points_min)
-    # tangent_coeffs = \
-    #     np.asarray((min_tangent_coeff[1:], max_tangent_coeff[:-1]))
     tangent_coeffs = \
         np.asarray((min_tangent_coeff[1:], max_tangent_coeff[:-1]))
+    # tangent_coeffs = \
+    #     np.asarray((min_tangent_coeff[:-1], max_tangent_coeff[1:]))
     tangent_coeffs = tangent_coeffs.transpose((2, 0, 1))
     lin_seg_points_max = \
         find_linear_segment_interceptions(tangent_coeffs)
@@ -349,11 +349,11 @@ p_channel_linear_out = \
 dp_junction_channel_in = [p_channel_linear_in[i] - p_junction_in[1][i]
                           for i in range(geom.n_channels)]
 
-fig, ax = plt.subplots(dpi=dpi, figsize=figsize)
-x = lin_seg_interceptions[mfd_id][0]
-ax.plot(x, lin_seg_interceptions[mfd_id][1], linestyle='-')
-ax.plot(x, p_channel_linear_in, linestyle=':')
-plt.show()
+# fig, ax = plt.subplots(dpi=dpi, figsize=figsize)
+# x = lin_seg_interceptions[mfd_id][0]
+# ax.plot(x, lin_seg_interceptions[mfd_id][1], linestyle='-')
+# ax.plot(x, p_channel_linear_in, linestyle=':')
+# plt.show()
 
 fig = plt.figure(dpi=dpi, figsize=figsize)
 # colors = ['k', 'b', 'r', 'g', 'm']
