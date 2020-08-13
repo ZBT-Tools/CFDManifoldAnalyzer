@@ -73,14 +73,14 @@ class CFDDataChannel(OutputObject):
                                     self.nx)
                         for i in range(len(end_vector))])
         self.coords[:] = coords
-        self.x[:] = np.dot(self.coords, self.direction_vector)
+        self.x[:] = np.dot(self.coords.transpose(), self.direction_vector)
         return coords
 
     def plot(self, x=None, y=None, xlabel='Channel Coordinate [m]',
              ylabel='Pressure [Pa]', data_name='pressure',
              colormap=None, ax=None, **kwargs):
         if x is None:
-            x = self.cord_length
+            x = self.x
         if y is None:
             y = self.data[data_name]
         return super().plot_lines(x, y, xlabel=xlabel, ylabel=ylabel,
@@ -196,12 +196,13 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
         self.poly_order = 5
         self.window_length = np.int(np.round(self.resolution/10) // 2 * 2 + 1)
         self.x_range = np.linspace(x_range[0], x_range[1], self.resolution)
-        self.data_range = np.zeros(self.x_range.shape)
+        self.data_range = {key: np.zeros(self.x_range.shape)
+                           for key in self.data.keys()}
 
     def calculate_data_range(self, data_name='pressure'):
         if self.data_function[data_name] is None:
             self.make_interpolation_function(data_name)
-        self.data_range[:] = self.data_function[data_name](self.x_range)
+        self.data_range[data_name] = self.data_function[data_name](self.x_range)
 
     def calculate_gradient(self, data, order=1, filter_data=True):
         """
@@ -229,7 +230,8 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
                                 data_name='pressure', init_data=True):
         if init_data:
             self.calculate_data_range(data_name)
-        grad_data, data = self.calculate_gradient(self.data_range, order=order,
+        grad_data, data = self.calculate_gradient(self.data_range[data_name],
+                                                  order=order,
                                                   filter_data=filter_data)
         id_min = signal.argrelmin(grad_data, order=5)[0]
         return np.array((self.x_range[id_min], data[id_min]))
@@ -248,7 +250,8 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
                                               filter_data=filter_data,
                                               data_name=data_name,
                                               init_data=init_data)
-        return np.array((self.x_range[id_min], self.data_range[id_min]))
+        return np.array((self.x_range[id_min],
+                         self.data_range[data_name][id_min]))
 
     def get_higher_order_max(self, order=1, filter_data=True,
                              data_name='pressure', init_data=True):
@@ -256,7 +259,8 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
                                               filter_data=filter_data,
                                               data_name=data_name,
                                               init_data=init_data)
-        return np.array((self.x_range[id_max], self.data_range[id_max]))
+        return np.array((self.x_range[id_max],
+                         self.data_range[data_name][id_max]))
 
     @staticmethod
     def calc_linear_interceptions(coeffs):
@@ -271,24 +275,28 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
         y = m[0] * x + b[0]
         return np.array((x, y))
 
-    def calc_linear_coeffs_from_id(self, arg_id, id_width=1):
+    def calc_linear_coeffs_from_id(self, arg_id, id_width=1,
+                                   data_name='pressure'):
         linear_coeffs = []
         for i in range(len(arg_id)):
             x = np.asarray(self.x_range[arg_id[i] - id_width],
                            self.x_range[arg_id[i] + id_width])
-            y = np.asarray(self.data_range[arg_id[i] - id_width],
-                           self.data_range[arg_id[i] + id_width])
+            y = np.asarray(self.data_range[data_name][arg_id[i] - id_width],
+                           self.data_range[data_name][arg_id[i] + id_width])
             linear_coeffs.append(self.linear_coefficients(x, y))
         return np.asarray(linear_coeffs)
 
-    def calc_linear_segment_interceptions(self, id_width=1, order='minmax'):
+    def calc_linear_segment_interceptions(self, id_width=1, order='minmax',
+                                          data_name='pressure'):
         grad_order = 1
         id_linear_min = self.get_higher_order_min(order=grad_order)
         id_linear_max = self.get_higher_order_max(order=grad_order)
         linear_min_coeffs = \
-            self.calc_linear_coeffs_from_id(id_linear_min, id_width=id_width)
+            self.calc_linear_coeffs_from_id(id_linear_min, id_width=id_width,
+                                            data_name=data_name)
         linear_max_coeffs = \
-            self.calc_linear_coeffs_from_id(id_linear_max, id_width=id_width)
+            self.calc_linear_coeffs_from_id(id_linear_max, id_width=id_width,
+                                            data_name=data_name)
         if order == 'minmax':
             linear_coeffs = np.asarray((linear_min_coeffs, linear_max_coeffs))
         elif order == 'maxmin':
@@ -320,7 +328,7 @@ class CFDMassFlowProcessor(OutputObject, ABC):
         self.total_mass_flow = 0.0
 
     @abstractmethod
-    def process(self):
+    def process(self, total_mass_flow=None):
         pass
 
     def save(self, name='mass_flow_data', as_ascii=True):
@@ -347,24 +355,30 @@ class CFDMassFlowFileProcessor(CFDMassFlowProcessor):
     def load_2d_data(self):
         return pd.read_csv(self.file_path, sep='\t', header=[0, 1])
 
-    def process(self):
+    def process(self, total_mass_flow=None):
         cfd_data_2d = self.load_2d_data()
         self.mass_flows = \
             cfd_data_2d[self.mass_flow_name].iloc[-2].to_numpy()
         self.n_channels = len(self.mass_flows)
-        self.total_mass_flow = \
-            cfd_data_2d[self.total_mass_flow_name].iloc[-2][0]
+        if self.total_mass_flow is None:
+            self.total_mass_flow = \
+                cfd_data_2d[self.total_mass_flow_name].iloc[-2][0]
+        else:
+            self.total_mass_flow = total_mass_flow
         return self.mass_flows
 
 
 class CFDMassFlowArrayProcessor(CFDMassFlowProcessor):
     def __init__(self, data, output_dir, name=None):
         super().__init__(output_dir, name)
-        self.mass_flows[:] = data
+        self.mass_flows = data
 
-    def process(self):
+    def process(self, total_mass_flow=None):
         self.n_channels = len(self.mass_flows)
-        self.total_mass_flow = np.sum(self.mass_flows)
+        if self.total_mass_flow is None:
+            self.total_mass_flow = np.sum(self.mass_flows)
+        else:
+            self.total_mass_flow = total_mass_flow
         return self.mass_flows
 
 
@@ -393,7 +407,7 @@ class CFDManifoldProcessor(OutputObject):
         for i in range(geom.n_channels):
             start_vector = \
                 np.asarray((0.0,
-                            geom.manifold_y[0] - 0.5 * geom.manifold_diameter,
+                            geom.manifold_y[0] + 0.5 * geom.manifold_diameter,
                             geom.channel_0_z + i * geom.channel_distance_z))
             direction_vector = channel_flow_direction
             self.channels.append(
@@ -433,10 +447,11 @@ class CFDManifoldProcessor(OutputObject):
         # status flag if data has been processed
         self.is_processed = False
 
-    def process(self):
+    def process(self, **kwargs):
         self.interpolate_data()
         self.make_interpolation_functions()
-        self.mass_flow_data.process()
+        total_mass_flow = kwargs.get('total_mass_flow', None)
+        self.mass_flow_data.process(total_mass_flow=total_mass_flow)
         self.is_processed = True
 
     def load_3d_data(self):
@@ -532,7 +547,8 @@ class CFDManifoldProcessor(OutputObject):
         for chl in self.channels:
             chl.data_function[data_name] = interp1d(chl.x, chl.data[data_name])
         for mfd in self.manifolds:
-            mfd.data_function[data_name] = interp1d(mfd.x, mfd.data_range[data_name])
+            mfd.data_function[data_name] = \
+                interp1d(mfd.x, mfd.data_range[data_name])
 
     def save_collection(self, collection_name):
         if collection_name == 'channel':
@@ -556,19 +572,21 @@ class CFDManifoldProcessor(OutputObject):
         for collection in self.collections:
             self.save_collection(collection)
 
-    def plot(self, **kwargs):
+    def plot(self, data_name='pressure', ylabel='Pressure Pa[]', **kwargs):
         # plot channel pressures
         x = self.channels[0].cord_length
-        y = [channel.data['pressure'] for channel in self.channels]
-        file_path = os.path.join(self.output_dir, 'channel_pressure.png')
+        y = [channel.data[data_name] for channel in self.channels]
+        file_path = os.path.join(self.output_dir,
+                                 'channel_' + data_name + '.png')
         self.create_figure(file_path, x, y, xlabels='Length [m]',
-                           ylabels='Pressure [Pa]', marker=None, **kwargs)
+                           ylabels=ylabel, marker=None, **kwargs)
         # plot manifold pressures
         x = self.manifolds[0].cord_length
-        y = [manifold.data_range['pressure'] for manifold in self.manifolds]
-        file_path = os.path.join(self.output_dir, 'manifold_pressure.png')
+        y = [manifold.data_range[data_name] for manifold in self.manifolds]
+        file_path = os.path.join(self.output_dir,
+                                 'manifold_' + data_name + '.png')
         self.create_figure(file_path, x, y, xlabels='Length [m]',
-                           ylabels='Pressure [Pa]', marker='', **kwargs)
+                           ylabels=ylabel, marker='', **kwargs)
 
         # plot mass flow distribution
         x = np.array([i for i in range(self.n_channels)])
@@ -590,15 +608,16 @@ class CFDTJunctionProcessor(CFDManifoldProcessor):
 
     def load_3d_data(self, processor_split=True, pattern='proc_'):
         path = os.path.abspath(self.pressure_file_path)
+        dir_name = os.path.dirname(path)
         if processor_split:
             if pattern in self.pressure_file_path:
                 # find all processor-divided pressure files
                 dir_entries = os.listdir(os.path.dirname(path))
                 pressure_files = \
-                    [os.path.abspath(entry) for entry in dir_entries
+                    [os.path.join(dir_name, entry) for entry in dir_entries
                      if pattern in entry]
                 # get column names from first file
-                column_names = pd.read_csv(pressure_files[0], sep=',|, ',
+                column_names = pd.read_csv(pressure_files[0], sep=', |,',
                                            header=[1], nrows=0).columns.tolist()
                 # replace column names for coordinates and velocity
                 coordinate_ids = (1, 2, 3)
@@ -613,7 +632,7 @@ class CFDTJunctionProcessor(CFDManifoldProcessor):
                                        skiprows=[0, 1], names=column_names)
                            for file in pressure_files]
                 # concatenate all dfs
-                df = pd.concat(df_list, ignore_index=True)
+                return pd.concat(df_list, ignore_index=True)
             else:
                 raise ValueError('pattern "{}" not found in file '
                                  '"{}"'.format(pattern,
@@ -633,4 +652,20 @@ class CFDTJunctionProcessor(CFDManifoldProcessor):
         coord_array = np.asarray(coordinates)
         value_array = df['pressure'].to_numpy()
         combined_array = np.asarray(np.vstack((coord_array, value_array)))
-        return combined_array, coord_array, value_array
+        return combined_array, coord_array.transpose(), value_array
+
+    def plot(self, data_name='pressure', ylabel='Pressure Pa[]', **kwargs):
+        # plot channel pressures
+        x = self.channels[0].x
+        y = [channel.data[data_name] for channel in self.channels]
+        file_path = os.path.join(self.output_dir,
+                                 'channel_' + data_name + '.png')
+        self.create_figure(file_path, x, y, xlabels='Length [m]',
+                           ylabels=ylabel, marker=None, **kwargs)
+        # plot manifold pressures
+        x = self.manifolds[0].x
+        y = [manifold.data_range[data_name] for manifold in self.manifolds]
+        file_path = os.path.join(self.output_dir,
+                                 'manifold_' + data_name + '.png')
+        self.create_figure(file_path, x, y, xlabels='Length [m]',
+                           ylabels=ylabel, marker='', **kwargs)
