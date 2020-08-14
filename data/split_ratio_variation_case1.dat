@@ -1,0 +1,18 @@
+"Description" "Value" "Additional Info"
+"-" "-" "-"
+        Area 0.00484698889477         None 
+Case 1:1000.0:Flow:RelativePressure           Pa         None 
+Minimal value -100007.804688 near cell 95737 
+Maximal value -99994.859375 near cell 12058 
+Minimal value on entire mesh -100008.21875 at cell 15685 
+Maximal value on entire mesh -99994.859375 at cell 12058 
+Average value, area-weighted -99999.47378603734         None 
+Standard deviation, area-weighted 2.862434459752215         None 
+Average value, area*density-weighted -99999.47378603743 computed using: default density 1.16 
+Standard deviation, area*density-weighted 2.8624327939069225 computed using: default density 1.16 
+Average normal velocity          0.0 computed using: default velocity 0.0 
+Standard deviation of normal velocity          0.0         None 
+Average velocity components at cut surface 0.000000, 0.000000, 0.000000         None 
+Volume flow over cut surface          0.0 computed using default volume fraction: 1.0 
+Mass flow over cut surface          0.0 computed using default volume fraction: 1.0 
+Flow of displayed attribute          0.0 computed using default volume fraction: 1.0 
