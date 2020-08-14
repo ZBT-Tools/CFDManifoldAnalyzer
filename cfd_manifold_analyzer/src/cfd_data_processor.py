@@ -400,16 +400,15 @@ class CFDManifoldProcessor(OutputObject):
         # create channel data objects
         # assure correct dimensions of flow direction array
         channel_flow_direction = np.asarray(geom.channel_flow_direction)
-        if channel_flow_direction.shape != (3,):
+        channel_start_vector = np.asarray(geom.channel_start_vector)
+        if channel_flow_direction.shape != (self.n_channels, 3):
             raise ValueError('shape of channel_flow_direction must be '
-                             'one-dimensional array with three values')
+                             'two-dimensional array with each sub-array '
+                             'having three values')
         self.channels = []
         for i in range(geom.n_channels):
-            start_vector = \
-                np.asarray((0.0,
-                            geom.manifold_y[0] + 0.5 * geom.manifold_diameter,
-                            geom.channel_0_z + i * geom.channel_distance_z))
-            direction_vector = channel_flow_direction
+            start_vector = channel_start_vector[i]
+            direction_vector = channel_flow_direction[i]
             self.channels.append(
                 LinearCFDDataChannel(geom.channel_diameter, geom.channel_length,
                                      start_vector, direction_vector,
@@ -417,25 +416,15 @@ class CFDManifoldProcessor(OutputObject):
 
         # create manifold data objects
         manifold_flow_direction = np.asarray(geom.manifold_flow_direction)
+        manifold_start_vector = np.asarray(geom.manifold_start_vector)
         if manifold_flow_direction.shape != (self.n_manifolds, 3):
-            raise ValueError('shape of channel_flow_direction must be '
-                             'two-dimensional array with three values for '
-                             'each manifold')
+            raise ValueError('shape of manifold_flow_direction must be '
+                             'two-dimensional array with each sub-array '
+                             'having three values')
         self.manifolds = []
         for i in range(geom.n_manifolds):
-            mfd_flow_dir = manifold_flow_direction[i]
-            if mfd_flow_dir[mfd_flow_dir != 0] > 0:
-                idz = 0
-            elif mfd_flow_dir[mfd_flow_dir != 0] < 0:
-                idz = -1
-            else:
-                raise ValueError('each manifold flow direction vector must '
-                                 'contain a single non-zero positive or '
-                                 'negative value aligned with a coordinate '
-                                 'axis')
-            start_vector = np.asarray((0.0, geom.manifold_y[i],
-                                       geom.bounding_box[-1, idz]))
-            direction_vector = np.asarray(mfd_flow_dir)
+            start_vector = manifold_start_vector[i]
+            direction_vector = manifold_flow_direction[i]
             self.manifolds.append(ManifoldCFDDataChannel(
                 geom.manifold_diameter, geom.manifold_length, start_vector,
                 direction_vector, geom.manifold_dz,
@@ -526,6 +515,7 @@ class CFDManifoldProcessor(OutputObject):
         # for i in range(n_channels):
         pressure_combined = griddata(stripped_data_coords, data_values,
                                      stripped_coords_combined)
+        pressure_sum = np.sum(pressure_combined)
         # split into separate channel and manifold pressure arrays
         nx_channel = self.channels[0].nx
         channel_pressure_combined = \
@@ -541,14 +531,13 @@ class CFDManifoldProcessor(OutputObject):
         for i, channel in enumerate(self.channels):
             channel.data[data_name] = channel_pressure[i]
         for i, manifold in enumerate(self.manifolds):
-            manifold.data_range[data_name] = manifold_pressure[i]
+            manifold.data[data_name] = manifold_pressure[i]
 
     def make_interpolation_functions(self, data_name='pressure'):
         for chl in self.channels:
-            chl.data_function[data_name] = interp1d(chl.x, chl.data[data_name])
+            chl.make_interpolation_function()
         for mfd in self.manifolds:
-            mfd.data_function[data_name] = \
-                interp1d(mfd.x, mfd.data_range[data_name])
+            mfd.make_interpolation_function()
 
     def save_collection(self, collection_name):
         if collection_name == 'channel':
@@ -578,14 +567,14 @@ class CFDManifoldProcessor(OutputObject):
         y = [channel.data[data_name] for channel in self.channels]
         file_path = os.path.join(self.output_dir,
                                  'channel_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Length [m]',
+        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
                            ylabels=ylabel, marker=None, **kwargs)
         # plot manifold pressures
         x = self.manifolds[0].cord_length
-        y = [manifold.data_range[data_name] for manifold in self.manifolds]
+        y = [manifold.data[data_name] for manifold in self.manifolds]
         file_path = os.path.join(self.output_dir,
                                  'manifold_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Length [m]',
+        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
                            ylabels=ylabel, marker='', **kwargs)
 
         # plot mass flow distribution
@@ -660,12 +649,12 @@ class CFDTJunctionProcessor(CFDManifoldProcessor):
         y = [channel.data[data_name] for channel in self.channels]
         file_path = os.path.join(self.output_dir,
                                  'channel_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Length [m]',
+        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
                            ylabels=ylabel, marker=None, **kwargs)
         # plot manifold pressures
         x = self.manifolds[0].x
-        y = [manifold.data_range[data_name] for manifold in self.manifolds]
+        y = [manifold.data[data_name] for manifold in self.manifolds]
         file_path = os.path.join(self.output_dir,
                                  'manifold_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Length [m]',
+        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
                            ylabels=ylabel, marker='', **kwargs)

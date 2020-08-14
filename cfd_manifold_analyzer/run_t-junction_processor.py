@@ -6,77 +6,68 @@ import numpy as np
 # import cfd_manifold_analyzer.src.convert_to_binary
 # import cfd_manifold_analyzer.src.process_3d_avl_fire_cut
 from cfd_manifold_analyzer.settings import file_names
-from cfd_manifold_analyzer.settings import geometry
+from cfd_manifold_analyzer.settings import geometry as geom
 from cfd_manifold_analyzer.settings import physical_properties
 import cfd_manifold_analyzer.src.cfd_data_processor as cfd_proc
+from cfd_manifold_analyzer.settings import model
+
+# calculate boundary conditions
+
+
+reynolds_number = 2300.0
+split_ratio = 0.01
+manifold_area = geom.manifold_diameter ** 2.0 * np.pi * 0.25
+channel_area = geom.channel_diameter ** 2.0 * np.pi * 0.25
+
+manifold_velocity = reynolds_number * physical_properties.viscosity \
+    / (geom.manifold_diameter * physical_properties.density)
+manifold_mass_flow = \
+    manifold_velocity * manifold_area * physical_properties.density
+
+channel_mass_flow = split_ratio * manifold_mass_flow
+channel_velocity = \
+    manifold_mass_flow / (physical_properties.density * channel_area)
 
 # load and process cfd data
 pressure_file_path = \
     os.path.join(file_names.dir_name, file_names.avl_fire_file_3d)
-mass_flow_data = np.array([0.1])
+mass_flow_data = np.array([channel_mass_flow])
 output_dir = os.path.join(file_names.dir_name, file_names.output_dir)
 cfd_data = cfd_proc.CFDTJunctionProcessor(pressure_file_path,
                                           mass_flow_data, output_dir)
 cfd_data.process()
 cfd_data.plot()
 
-# create model fluid
-temperature = 293.15
-pressure = 101325.0
-nodes = 2
-
 # setup and create the model channels
+fluid = pemfc.fluid.dict_factory(model.fluid_dict)
+channel = pemfc.channel.Channel(model.channel_dict, fluid)
+fluid = pemfc.fluid.dict_factory(model.fluid_dict)
+manifold = pemfc.channel.Channel(model.manifold_dict, fluid)
 
-fluid_dict = {
-    'name': 'Air',
-    'specific_heat': physical_properties.specific_heat,
-    'density': physical_properties.density,
-    'viscosity': physical_properties.viscosity,
-    'thermal_conductivity': physical_properties.thermal_conductivity,
-    'temp_init': temperature,
-    'press_init': pressure,
-    'nodes': nodes
-    }
-# create model channels
-n_chl = geometry.n_channels
-n_subchl = 1
+# get mass flow data
+mass_flows = cfd_data.mass_flow_data.mass_flows
 
-channel_dict = {
-    'name': 'Channel',
-    'length': geometry.channel_length,
-    'cross_sectional_shape': 'circular',
-    'diameter': geometry.channel_diameter,
-    'width': geometry.channel_diameter,
-    'height': geometry.channel_diameter,
-    'p_out': pressure,
-    'temp_in': temperature,
-    'flow_direction': 1,
-    'bend_number': 0,
-    'bend_friction_factor': 0.1,
-    'constant_friction_factor': 0.2
-    }
-fluid = pemfc.fluid.dict_factory(fluid_dict)
-channel = pemfc.channel.Channel(channel_dict, fluid)
-
-manifold_dict = {
-    'name': 'Manifold',
-    'length': geometry.manifold_length,
-    'p_out': pressure,
-    'temp_in': temperature,
-    'flow_direction': 1,
-    'width': geometry.manifold_diameter,
-    'height': geometry.manifold_diameter,
-    'bend_number': 0,
-    'bend_friction_factor': 0.0,
-    'constant_friction_factor': -0.1,
-    'flow_split_factor': 0.0,
-    'wall_friction': False
-}
-fluid = pemfc.fluid.dict_factory(fluid_dict)
-manifold = pemfc.channel.Channel(manifold_dict, fluid)
+# get channel outlet pressure
+x_out_channel = geom.channel_start_vector[0][1] + channel.length
+p_channel_out = cfd_data.channels[0].data_function['pressure'](x_out_channel)
+print(p_channel_out)
+p_manifold_out = \
+    cfd_data.manifolds[0].data_function['pressure'](geom.manifold_range[-1])
+print(p_manifold_out)
 
 
+# channel update
+channel.p_out = p_channel_out
+channel.update(mass_flow_in=channel_mass_flow,
+               update_heat=False)
 
-# cfd_data.channels[0].plot()
-# cfd_data.save()
-# channel = pemfc.channel.Channel()
+# manifold update
+manifold.p_out = p_manifold_out
+mass_source = - channel_mass_flow
+manifold.update(mass_flow_in=manifold_mass_flow,
+                mass_source=mass_source, update_heat=False)
+
+print(manifold.velocity)
+print(manifold.reynolds)
+print(channel.velocity)
+
