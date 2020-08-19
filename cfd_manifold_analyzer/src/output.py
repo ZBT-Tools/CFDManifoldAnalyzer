@@ -78,25 +78,7 @@ class OutputObject:
                 else:
                     new_key = key + ' ' + name
                 print_data_new_keys[new_key] = value
-                # print_data.pop(key)
             self.print_data[i] = print_data_new_keys
-        # print_data_new_keys = {}
-        # for key, value in self.print_data_1d.items():
-        #     if prepend:
-        #         new_key = name + ' ' + key
-        #     else:
-        #         new_key = key + ' ' + name
-        #     print_data_new_keys[new_key] = value
-        # self.print_data_1d = print_data_new_keys
-        # print_data_new_keys = {}
-        # for key, value in self.print_data_2d.items():
-        #     if prepend:
-        #         new_key = name + ' ' + key
-        #     else:
-        #         new_key = key + ' ' + name
-        #     print_data_new_keys[new_key] = value
-        # self.print_data_2d = print_data_new_keys
-        # self.print_data = [self.print_data_1d, self.print_data_2d]
 
     @classmethod
     def getinstances(cls):
@@ -227,11 +209,11 @@ class OutputObject:
                                  'equal to outer dimension of y')
         if y.ndim == 1:
             ax.plot(x, y, marker=kwargs.get('marker', '.'),
-                          markersize=kwargs.get('markersize', MARKER_SIZE),
-                          fillstyle=kwargs.get('fillstyle', 'full'),
-                          linewidth=kwargs.get('linewidth', LINE_WIDTH),
-                          linestyle=kwargs.get('linestyle', '-'),
-                          color=kwargs.get('color', 'k'))
+                    markersize=kwargs.get('markersize', MARKER_SIZE),
+                    fillstyle=kwargs.get('fillstyle', 'full'),
+                    linewidth=kwargs.get('linewidth', LINE_WIDTH),
+                    linestyle=kwargs.get('linestyle', '-'),
+                    color=kwargs.get('color', 'k'))
         else:
             if colormap is not None:
                 cmap = plt.get_cmap(colormap)

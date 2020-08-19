@@ -1,127 +1,155 @@
-import sys
+# global imports
 import os
-import pemfc
 import numpy as np
+import re
+import sys
+import matplotlib.pyplot as plt
+import matplotlib
 
-# import cfd_manifold_analyzer.src.convert_to_binary
-# import cfd_manifold_analyzer.src.process_3d_avl_fire_cut
+# custom library imports
+import pemfc
+
+# local imports
 from cfd_manifold_analyzer.settings import file_names
 from cfd_manifold_analyzer.settings import geometry as geom
 from cfd_manifold_analyzer.settings import physical_properties
 import cfd_manifold_analyzer.src.cfd_data_processor as cfd_proc
 from cfd_manifold_analyzer.settings import model
+from cfd_manifold_analyzer.src import streamline
 
-# calculate boundary conditions
+matplotlib.use('TkAgg')
 
-
+# specify boundary conditions
 reynolds_number = 2300.0
-split_ratio = 0.01
+split_ratio = None
 manifold_area = geom.manifold_diameter ** 2.0 * np.pi * 0.25
 channel_area = geom.channel_diameter ** 2.0 * np.pi * 0.25
 
-manifold_velocity = reynolds_number * physical_properties.viscosity \
-    / (geom.manifold_diameter * physical_properties.density)
-manifold_mass_flow = \
-    manifold_velocity * manifold_area * physical_properties.density
-
-channel_mass_flow = split_ratio * manifold_mass_flow
-channel_velocity = \
-    manifold_mass_flow / (physical_properties.density * channel_area)
-
-# load and process cfd data
+# specify directories and file paths
 pressure_file_path = \
     os.path.join(file_names.dir_name, file_names.avl_fire_file_3d)
-mass_flow_data = np.array([channel_mass_flow])
 output_dir = os.path.join(file_names.dir_name, file_names.output_dir)
-cfd_data = cfd_proc.CFDTJunctionProcessor(pressure_file_path,
-                                          mass_flow_data, output_dir)
-cfd_data.process()
-cfd_data.plot()
+
+# specify variation parameters
+n_cases = 27
+case_dict = {
+    'number': list(range(1, n_cases + 1)),
+    'file_variation_pattern': 'Case_',
+    'file_path': pressure_file_path,
+    'variation_parameter': 'split_ratio',
+    'value_variation': [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45,
+                        0.5, 0.55, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0,
+                        0.46, 0.47, 0.48, 0.49, 0.02, 0.03, 0.04]
+}
+
+
+# replacing substring tools
+def find_number(main_str, sub_str):
+    return re.findall(r'%s(\d+)' % sub_str, main_str)
+
+
+def replace_number(main_str, sub_str, number):
+    old_number = find_number(main_str, sub_str)[0]
+    return main_str.replace(sub_str + str(old_number), sub_str + str(number))
+
 
 # setup and create the model channels
 fluid = pemfc.fluid.dict_factory(model.fluid_dict)
-channel = pemfc.channel.Channel(model.channel_dict, fluid)
+chl = pemfc.channel.Channel(model.channel_dict, fluid)
 fluid = pemfc.fluid.dict_factory(model.fluid_dict)
-manifold = pemfc.channel.Channel(model.manifold_dict, fluid)
+mfd = pemfc.channel.Channel(model.manifold_dict, fluid)
 
-# get mass flow data
-mass_flows = cfd_data.mass_flow_data.mass_flows
+# create variation lists
+split_ratios = []
+zetas_mfd_mfd = []
+zetas_mfd_chl = []
 
-# get channel outlet pressure
-x_out_channel = geom.channel_start_vector[0][1] + channel.length
-p_chl_out = cfd_data.channels[0].data_function['pressure'](x_out_channel)
-print(p_chl_out)
-p_mfd_out = \
-    cfd_data.manifolds[0].data_function['pressure'](geom.manifold_range[-1])
-print(p_mfd_out)
+# parameter variation loop
+for i in range(n_cases):
+    print('processing case', str(i + 1))
+    old_file_path = case_dict['file_path']
+    case_number = case_dict['number'][i]
+    file_path = replace_number(old_file_path,
+                               case_dict['file_variation_pattern'], case_number)
 
-p_mfd_in = \
-    cfd_data.manifolds[0].data_function['pressure'](geom.manifold_range[0])
-p_mfd = [p_mfd_in, p_mfd_out]
-p_chl = [None, p_chl_out]
+    # set variation parameter value
+    setattr(sys.modules[__name__], case_dict['variation_parameter'],
+            case_dict['value_variation'][i])
+    split_ratios.append(split_ratio)
+    # calculate dependent boundary conditions
+    manifold_velocity = reynolds_number * physical_properties.viscosity \
+        / (geom.manifold_diameter * physical_properties.density)
+    manifold_mass_flow = \
+        manifold_velocity * manifold_area * physical_properties.density
 
-# channel update
-channel.p_out = p_chl_out
-channel.update(mass_flow_in=channel_mass_flow,
-               update_heat=False)
+    channel_mass_flow = split_ratio * manifold_mass_flow
+    mass_flow_data = np.array([channel_mass_flow])
+    channel_velocity = \
+        manifold_mass_flow / (physical_properties.density * channel_area)
 
-# manifold update
-manifold.p_out = p_mfd_out
-mass_source = - channel_mass_flow
-manifold.update(mass_flow_in=manifold_mass_flow,
-                mass_source=mass_source, update_heat=False)
+    # load and process 3D AVL FIRE M data
+    cfd_data = cfd_proc.CFDTJunctionProcessor(file_path,
+                                              mass_flow_data, output_dir)
+    cfd_data.process()
+    # cfd_data.plot()
 
-print(manifold.velocity)
-print(manifold.reynolds)
-print(channel.velocity)
-mfd = manifold
-chl = channel
-# set length segments according to analysation points
-dx_mfd = [0.0 - geom.manifold_range[0], geom.manifold_range[1] - 0.0]
-dx_chl = geom.channel_length
+    # get mass flow data
+    mass_flows = cfd_data.mass_flow_data.mass_flows
 
+    # get channel outlet pressure
+    x_out_channel = geom.channel_start_vector[0][1] + chl.length
+    p_chl_out = cfd_data.channels[0].data_function['pressure'](x_out_channel)
+    p_mfd_out = \
+        cfd_data.manifolds[0].data_function['pressure'](geom.manifold_range[-1])
 
-# get tube friction factors
-for zeta in manifold.zetas:
-    if isinstance(zeta, pemfc.flow_resistance.WallFrictionFlowResistance):
-        f_mfd = zeta.value * manifold.d_h / (manifold.dx_node * 0.5)
+    p_mfd_in = \
+        cfd_data.manifolds[0].data_function['pressure'](geom.manifold_range[0])
+    p_mfd = [p_mfd_in, p_mfd_out]
+    p_chl = [None, p_chl_out]
 
-for zeta in channel.zetas:
-    if isinstance(zeta, pemfc.flow_resistance.WallFrictionFlowResistance):
-        f_chl = np.average(zeta.value * channel.d_h / (channel.dx_node * 0.5))
+    # channel update
+    chl.p_out = p_chl_out
+    chl.update(mass_flow_in=channel_mass_flow, update_heat=False)
 
-# calculate t-junction flow resistance factor within manifold
-v1_v0_2 = (mfd.velocity[1] / mfd.velocity[0]) ** 2.0
-rho1_rho0 = mfd.fluid.density[1] / mfd.fluid.density[0]
+    # manifold update
+    mfd.p_out = p_mfd_out
+    mass_source = - channel_mass_flow
+    mfd.update(mass_flow_in=manifold_mass_flow,
+               mass_source=mass_source, update_heat=False)
 
-zeta_mfd = 1.0 \
-    + (p_mfd[0] - p_mfd[1]) \
-    * 2.0 / (mfd.fluid.density[0] * mfd.velocity[0] ** 2.0) \
-    - rho1_rho0 * v1_v0_2 \
-    - dx_mfd[0] / mfd.d_h * f_mfd[0] \
-    - rho1_rho0 * v1_v0_2 * dx_mfd[1] / mfd.d_h * f_mfd[1]
+    # set length segments according to analysation points
+    dx_mfd = [0.0 - geom.manifold_range[0], geom.manifold_range[1] - 0.0]
+    dx_chl = geom.channel_length
 
-# calculate t-junction flow resistance factor from manifold to channel
-v2_v0_2 = (chl.velocity[1] / mfd.velocity[0]) ** 2.0
-rho2_rho0 = chl.fluid.density[1] / mfd.fluid.density[0]
-zeta_chl = 1.0 \
-    + (p_mfd[0] - p_chl[1]) \
-    * 2.0 / (mfd.fluid.density[0] * mfd.velocity[0] ** 2.0) \
-    - rho2_rho0 * v2_v0_2 \
-    - dx_mfd[0] / mfd.d_h * f_mfd[0] \
-    - rho2_rho0 * v2_v0_2 * dx_chl / chl.d_h * f_chl
-
-print(zeta_mfd)
-print(zeta_chl)
-
-# calculate t-junction flow resistance factor
-# including dynamic and tube resistance
-zeta_mfd_2 = (p_mfd[1] - p_mfd[0]) \
-    * 2.0 / (mfd.fluid.density[0] * mfd.velocity[0] ** 2.0)
-zeta_chl_2 = (p_chl[1] - p_mfd[0]) \
-    * 2.0 / (mfd.fluid.density[0] * mfd.velocity[0] ** 2.0)
-
-print(zeta_mfd_2)
-print(zeta_chl_2)
+    # create streamline object from manifold (mfd) to channel (chl)
+    sl_mfd_chl = streamline.Streamline()
+    sl_mfd_chl.add_point("mfd_in", channel=mfd, idx=0,
+                         half_distance=dx_mfd[0], pressure=p_mfd_in)
+    sl_mfd_chl.add_point("chl_out", channel=chl, idx=-1,
+                         half_distance=dx_chl, pressure=p_chl_out)
+    sl_mfd_chl.add_point("mfd_out", channel=mfd, idx=1,
+                         half_distance=dx_mfd[1], pressure=p_mfd_out)
+    zeta_mfd_mfd = sl_mfd_chl.calculate_zeta(0, 2)
+    zetas_mfd_mfd.append(zeta_mfd_mfd)
+    p_mfd_mfd = sl_mfd_chl.calculate_pressure_difference(0, 2, zeta_mfd_mfd)
+    print('zeta mfd-mfd: ', zeta_mfd_mfd)
+    print('calculated pressure difference mfd-mfd: ', p_mfd_mfd)
+    print('cfd pressure difference mfd-mfd: ', p_mfd[1] - p_mfd[0])
+    zeta_mfd_chl = sl_mfd_chl.calculate_zeta(0, 1)
+    zetas_mfd_chl.append(zeta_mfd_chl)
+    p_mfd_chl = sl_mfd_chl.calculate_pressure_difference(0, 1, zeta_mfd_chl)
+    print('zeta mfd-chl: ', zeta_mfd_chl)
+    print('calculated pressure difference mfd-chl: ', p_mfd_chl)
+    print('cfd pressure difference mfd-chl: ', p_chl[1] - p_mfd[0])
 
 
+fig, ax = plt.subplots()
+ax.plot(split_ratios, zetas_mfd_mfd, label='$\zeta$-Manifold', marker='.')
+ax.plot(split_ratios, zetas_mfd_chl, label='$\zeta$-Branch', marker='.')
+ax.legend()
+ax.set_title('Dividing T-Junction')
+ax.set_xticks(np.arange(0.0, 1.0, 0.1))
+ax.set_xlabel('Discharge Ratio [-]')
+ax.set_ylabel('Resistance Coefficient [-]')
+ax.grid()
+fig.savefig(os.path.join(output_dir, 'dividing_t-junction_resistance.png'))

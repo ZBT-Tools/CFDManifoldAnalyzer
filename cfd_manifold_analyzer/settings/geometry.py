@@ -19,7 +19,7 @@ manifold_y = [0.0]
 manifold_diameter = 0.01
 manifold_length = 0.38
 channel_diameter = 0.005
-channel_length = 0.14
+channel_length = 0.15
 
 # flow direction in manifold in z-direction,
 # list indexed according to flow direction
@@ -28,7 +28,7 @@ manifold_flow_direction = [[0.0, 0.0, 1.0]]
 # flow direction in channel in y-direction
 channel_flow_direction = [[0.0, 1.0, 0.0]]
 
-channel_start_vector = [[0.0, manifold_diameter * 0.5, 0.0]]
+channel_start_vector = [[0.0, 0.0, 0.005]]
 manifold_start_vector = [[0.0, 0.0, -0.19]]
 manifold_direction_vector = manifold_flow_direction
 # discretization [m] in channel along y-axis
@@ -52,8 +52,3 @@ bounding_box = np.asarray((x_ext, y_ext, z_ext))
 
 # coordinate range for manifold pressure analyzation
 manifold_range = (-0.05, 0.17)
-
-
-
-
-

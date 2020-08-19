@@ -561,16 +561,16 @@ class CFDManifoldProcessor(OutputObject):
         for collection in self.collections:
             self.save_collection(collection)
 
-    def plot(self, data_name='pressure', ylabel='Pressure Pa[]', **kwargs):
+    def plot(self, data_name='pressure', ylabel='Pressure [Pa]', **kwargs):
         # plot channel pressures
-        x = self.channels[0].cord_length
+        x = [channel.x for channel in self.channels]
         y = [channel.data[data_name] for channel in self.channels]
         file_path = os.path.join(self.output_dir,
                                  'channel_' + data_name + '.png')
         self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
                            ylabels=ylabel, marker=None, **kwargs)
         # plot manifold pressures
-        x = self.manifolds[0].cord_length
+        x = [manifold.x for manifold in self.manifolds]
         y = [manifold.data[data_name] for manifold in self.manifolds]
         file_path = os.path.join(self.output_dir,
                                  'manifold_' + data_name + '.png')
@@ -643,16 +643,16 @@ class CFDTJunctionProcessor(CFDManifoldProcessor):
         combined_array = np.asarray(np.vstack((coord_array, value_array)))
         return combined_array, coord_array.transpose(), value_array
 
-    def plot(self, data_name='pressure', ylabel='Pressure Pa[]', **kwargs):
+    def plot(self, data_name='pressure', ylabel='Pressure [Pa]', **kwargs):
         # plot channel pressures
-        x = self.channels[0].x
+        x = [channel.x for channel in self.channels]
         y = [channel.data[data_name] for channel in self.channels]
         file_path = os.path.join(self.output_dir,
                                  'channel_' + data_name + '.png')
         self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
                            ylabels=ylabel, marker=None, **kwargs)
         # plot manifold pressures
-        x = self.manifolds[0].x
+        x = [manifold.x for manifold in self.manifolds]
         y = [manifold.data[data_name] for manifold in self.manifolds]
         file_path = os.path.join(self.output_dir,
                                  'manifold_' + data_name + '.png')
