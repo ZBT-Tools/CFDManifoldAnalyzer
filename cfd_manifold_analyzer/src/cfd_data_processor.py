@@ -561,21 +561,34 @@ class CFDManifoldProcessor(OutputObject):
         for collection in self.collections:
             self.save_collection(collection)
 
+    def plot_collection(self, collection_name, data_name='pressure',
+                        xlabel='Coordinate [m]', ylabel='Pressure [Pa]',
+                        **kwargs):
+        if collection_name == 'channel':
+            collection = self.channels
+        elif collection_name == 'manifold':
+            collection = self.manifolds
+        else:
+            raise ValueError('collection with name {}'
+                             ' not available'.format(collection_name))
+        # plot channel pressures
+        x = [channel.x for channel in collection]
+        y = [channel.data[data_name] for channel in collection]
+        file_path = os.path.join(self.output_dir,
+                                 collection_name + '_' + data_name)
+        if 'name_extension' in kwargs:
+            file_path += kwargs['name_extension']
+        file_path += '.png'
+        self.create_figure(file_path, x, y, xlabels=xlabel, ylabels=ylabel,
+                           marker=None, **kwargs)
+
     def plot(self, data_name='pressure', ylabel='Pressure [Pa]', **kwargs):
         # plot channel pressures
-        x = [channel.x for channel in self.channels]
-        y = [channel.data[data_name] for channel in self.channels]
-        file_path = os.path.join(self.output_dir,
-                                 'channel_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
-                           ylabels=ylabel, marker=None, **kwargs)
+        self.plot_collection('channel', data_name=data_name, ylabel=ylabel,
+                             **kwargs)
         # plot manifold pressures
-        x = [manifold.x for manifold in self.manifolds]
-        y = [manifold.data[data_name] for manifold in self.manifolds]
-        file_path = os.path.join(self.output_dir,
-                                 'manifold_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
-                           ylabels=ylabel, marker='', **kwargs)
+        self.plot_collection('manifold', data_name=data_name, ylabel=ylabel,
+                             **kwargs)
 
         # plot mass flow distribution
         x = np.array([i for i in range(self.n_channels)])
@@ -645,16 +658,8 @@ class CFDTJunctionProcessor(CFDManifoldProcessor):
 
     def plot(self, data_name='pressure', ylabel='Pressure [Pa]', **kwargs):
         # plot channel pressures
-        x = [channel.x for channel in self.channels]
-        y = [channel.data[data_name] for channel in self.channels]
-        file_path = os.path.join(self.output_dir,
-                                 'channel_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
-                           ylabels=ylabel, marker=None, **kwargs)
+        self.plot_collection('channel', data_name=data_name, ylabel=ylabel,
+                             **kwargs)
         # plot manifold pressures
-        x = [manifold.x for manifold in self.manifolds]
-        y = [manifold.data[data_name] for manifold in self.manifolds]
-        file_path = os.path.join(self.output_dir,
-                                 'manifold_' + data_name + '.png')
-        self.create_figure(file_path, x, y, xlabels='Coordinate [m]',
-                           ylabels=ylabel, marker='', **kwargs)
+        self.plot_collection('manifold', data_name=data_name, ylabel=ylabel,
+                             **kwargs)

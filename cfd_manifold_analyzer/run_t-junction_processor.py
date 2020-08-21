@@ -1,7 +1,6 @@
 # global imports
 import os
 import numpy as np
-import re
 import sys
 import matplotlib.pyplot as plt
 import matplotlib
@@ -16,6 +15,7 @@ from cfd_manifold_analyzer.settings import physical_properties
 import cfd_manifold_analyzer.src.cfd_data_processor as cfd_proc
 from cfd_manifold_analyzer.settings import model
 from cfd_manifold_analyzer.src import streamline
+from cfd_manifold_analyzer.src import globals
 
 matplotlib.use('TkAgg')
 
@@ -31,27 +31,16 @@ pressure_file_path = \
 output_dir = os.path.join(file_names.dir_name, file_names.output_dir)
 
 # specify variation parameters
-n_cases = 27
+n_cases = 26
 case_dict = {
-    'number': list(range(1, n_cases + 1)),
+    'number': list(range(2, n_cases + 2)),
     'file_variation_pattern': 'Case_',
     'file_path': pressure_file_path,
     'variation_parameter': 'split_ratio',
-    'value_variation': [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45,
-                        0.5, 0.55, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0,
-                        0.46, 0.47, 0.48, 0.49, 0.02, 0.03, 0.04]
+    'value_variation': [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35,
+                        0.4, 0.45, 0.5, 0.55, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9,
+                        0.95, 1.0, 0.02, 0.03, 0.04, 0.46, 0.47, 0.48, 0.49]
 }
-
-
-# replacing substring tools
-def find_number(main_str, sub_str):
-    return re.findall(r'%s(\d+)' % sub_str, main_str)
-
-
-def replace_number(main_str, sub_str, number):
-    old_number = find_number(main_str, sub_str)[0]
-    return main_str.replace(sub_str + str(old_number), sub_str + str(number))
-
 
 # setup and create the model channels
 fluid = pemfc.fluid.dict_factory(model.fluid_dict)
@@ -63,14 +52,16 @@ mfd = pemfc.channel.Channel(model.manifold_dict, fluid)
 split_ratios = []
 zetas_mfd_mfd = []
 zetas_mfd_chl = []
+reynolds_chl = []
 
 # parameter variation loop
 for i in range(n_cases):
     print('processing case', str(i + 1))
     old_file_path = case_dict['file_path']
     case_number = case_dict['number'][i]
-    file_path = replace_number(old_file_path,
-                               case_dict['file_variation_pattern'], case_number)
+    file_path = globals.replace_number(old_file_path,
+                                       case_dict['file_variation_pattern'],
+                                       case_number)
 
     # set variation parameter value
     setattr(sys.modules[__name__], case_dict['variation_parameter'],
@@ -85,13 +76,15 @@ for i in range(n_cases):
     channel_mass_flow = split_ratio * manifold_mass_flow
     mass_flow_data = np.array([channel_mass_flow])
     channel_velocity = \
-        manifold_mass_flow / (physical_properties.density * channel_area)
-
+        channel_mass_flow / (physical_properties.density * channel_area)
+    reynolds_chl.append(channel_velocity * geom.channel_diameter *
+                        physical_properties.density /
+                        physical_properties.viscosity)
     # load and process 3D AVL FIRE M data
     cfd_data = cfd_proc.CFDTJunctionProcessor(file_path,
                                               mass_flow_data, output_dir)
     cfd_data.process()
-    # cfd_data.plot()
+    # cfd_data.plot(name_extension='_' + str(case_number))
 
     # get mass flow data
     mass_flows = cfd_data.mass_flow_data.mass_flows
@@ -142,10 +135,17 @@ for i in range(n_cases):
     print('calculated pressure difference mfd-chl: ', p_mfd_chl)
     print('cfd pressure difference mfd-chl: ', p_chl[1] - p_mfd[0])
 
+# sort results
+x_array = np.array(split_ratios)
+y_array_1 = np.array(zetas_mfd_mfd)
+y_array_2 = np.array(zetas_mfd_chl)
+y_array_3 = np.array(reynolds_chl)
+xy_array = np.vstack((x_array, y_array_1, y_array_2, y_array_3))
+xy_array = xy_array[:, xy_array[0].argsort()]
 
 fig, ax = plt.subplots()
-ax.plot(split_ratios, zetas_mfd_mfd, label='$\zeta$-Manifold', marker='.')
-ax.plot(split_ratios, zetas_mfd_chl, label='$\zeta$-Branch', marker='.')
+ax.plot(xy_array[0], xy_array[1], label='$\zeta$-Manifold', marker='.')
+ax.plot(xy_array[0], xy_array[2], label='$\zeta$-Branch', marker='.')
 ax.legend()
 ax.set_title('Dividing T-Junction')
 ax.set_xticks(np.arange(0.0, 1.0, 0.1))
@@ -153,3 +153,11 @@ ax.set_xlabel('Discharge Ratio [-]')
 ax.set_ylabel('Resistance Coefficient [-]')
 ax.grid()
 fig.savefig(os.path.join(output_dir, 'dividing_t-junction_resistance.png'))
+
+fig, ax = plt.subplots()
+ax.plot(xy_array[0], xy_array[3], marker='.')
+ax.set_xticks(np.arange(0.0, 1.0, 0.1))
+ax.set_xlabel('Discharge Ratio [-]')
+ax.set_ylabel('Channel Reynolds Number [-]')
+ax.grid()
+fig.savefig(os.path.join(output_dir, 'channel_reynolds_number.png'))
