@@ -21,6 +21,7 @@ matplotlib.use('TkAgg')
 
 # specify boundary conditions
 reynolds_number = 2300.0
+reynolds_number_channel = 1000.0
 split_ratio = None
 manifold_area = geom.manifold_diameter ** 2.0 * np.pi * 0.25
 channel_area = geom.channel_diameter ** 2.0 * np.pi * 0.25
@@ -31,15 +32,15 @@ pressure_file_path = \
 output_dir = os.path.join(file_names.dir_name, file_names.output_dir)
 
 # specify variation parameters
-n_cases = 26
+n_cases = 19
 case_dict = {
-    'number': list(range(2, n_cases + 2)),
+    'number': list(range(1, n_cases + 1)),
     'file_variation_pattern': 'Case_',
     'file_path': pressure_file_path,
     'variation_parameter': 'split_ratio',
-    'value_variation': [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35,
-                        0.4, 0.45, 0.5, 0.55, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9,
-                        0.95, 1.0, 0.02, 0.03, 0.04, 0.46, 0.47, 0.48, 0.49]
+    'value_variation': [0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.15, 0.2, 0.25,
+                        0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75,
+                        0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99, 1.0]
 }
 
 # setup and create the model channels
@@ -68,18 +69,29 @@ for i in range(n_cases):
             case_dict['value_variation'][i])
     split_ratios.append(split_ratio)
     # calculate dependent boundary conditions
-    manifold_velocity = reynolds_number * physical_properties.viscosity \
-        / (geom.manifold_diameter * physical_properties.density)
-    manifold_mass_flow = \
-        manifold_velocity * manifold_area * physical_properties.density
-
-    channel_mass_flow = split_ratio * manifold_mass_flow
+    # manifold_velocity = reynolds_number * physical_properties.viscosity \
+    #     / (geom.manifold_diameter * physical_properties.density)
+    # manifold_mass_flow = \
+    #     manifold_velocity * manifold_area * physical_properties.density
+    #
+    # channel_mass_flow = split_ratio * manifold_mass_flow
+    # mass_flow_data = np.array([channel_mass_flow])
+    # channel_velocity = \
+    #     channel_mass_flow / (physical_properties.density * channel_area)
+    # reynolds_chl.append(channel_velocity * geom.channel_diameter *
+    #                     physical_properties.density /
+    #                     physical_properties.viscosity)
+    channel_velocity = reynolds_number_channel * physical_properties.viscosity \
+        / (physical_properties.density * geom.channel_diameter)
+    channel_mass_flow = channel_velocity * channel_area \
+        * physical_properties.density
+    manifold_mass_flow = channel_mass_flow / split_ratio
+    manifold_velocity = \
+        manifold_mass_flow / manifold_area / physical_properties.density
     mass_flow_data = np.array([channel_mass_flow])
-    channel_velocity = \
-        channel_mass_flow / (physical_properties.density * channel_area)
-    reynolds_chl.append(channel_velocity * geom.channel_diameter *
-                        physical_properties.density /
-                        physical_properties.viscosity)
+    reynolds_chl.append(manifold_velocity * geom.manifold_diameter
+                        * physical_properties.density
+                        / physical_properties.viscosity)
     # load and process 3D AVL FIRE M data
     cfd_data = cfd_proc.CFDTJunctionProcessor(file_path,
                                               mass_flow_data, output_dir)
@@ -144,15 +156,24 @@ xy_array = np.vstack((x_array, y_array_1, y_array_2, y_array_3))
 xy_array = xy_array[:, xy_array[0].argsort()]
 
 fig, ax = plt.subplots()
-ax.plot(xy_array[0], xy_array[1], label='$\zeta$-Manifold', marker='.')
-ax.plot(xy_array[0], xy_array[2], label='$\zeta$-Branch', marker='.')
+ax.plot(xy_array[0], xy_array[1], label='$\zeta$-Manifold-Manifold', marker='.')
 ax.legend()
 ax.set_title('Dividing T-Junction')
 ax.set_xticks(np.arange(0.0, 1.0, 0.1))
 ax.set_xlabel('Discharge Ratio [-]')
 ax.set_ylabel('Resistance Coefficient [-]')
 ax.grid()
-fig.savefig(os.path.join(output_dir, 'dividing_t-junction_resistance.png'))
+fig.savefig(os.path.join(output_dir, 'dividing_t-junction_resistance_mfd_mfd.png'))
+
+fig, ax = plt.subplots()
+ax.plot(xy_array[0], xy_array[2], label='$\zeta$-Manifold-Branch', marker='.')
+ax.legend()
+ax.set_title('Dividing T-Junction')
+ax.set_xticks(np.arange(0.0, 1.0, 0.1))
+ax.set_xlabel('Discharge Ratio [-]')
+ax.set_ylabel('Resistance Coefficient [-]')
+ax.grid()
+fig.savefig(os.path.join(output_dir, 'dividing_t-junction_resistance_mfd_chl.png'))
 
 fig, ax = plt.subplots()
 ax.plot(xy_array[0], xy_array[3], marker='.')

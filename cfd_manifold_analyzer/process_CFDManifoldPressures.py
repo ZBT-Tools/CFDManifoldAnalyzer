@@ -96,6 +96,7 @@ def find_linear_segment_interceptions(coeffs):
 def polyval(x, coeffs):
     return np.polynomial.polynomial.polyval(x, coeffs)
 
+
 # specify directory and file names
 output_dir_name = os.path.join(file_names.dir_name, file_names.output_dir)
 manifold_file_name = os.path.join(output_dir_name,
