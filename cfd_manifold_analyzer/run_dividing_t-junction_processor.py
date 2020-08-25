@@ -21,7 +21,7 @@ matplotlib.use('TkAgg')
 
 # specify boundary conditions
 reynolds_number = 2300.0
-reynolds_number_channel = 1000.0
+reynolds_number_channel = 200.0
 split_ratio = None
 manifold_area = geom.manifold_diameter ** 2.0 * np.pi * 0.25
 channel_area = geom.channel_diameter ** 2.0 * np.pi * 0.25
@@ -32,7 +32,7 @@ pressure_file_path = \
 output_dir = os.path.join(file_names.dir_name, file_names.output_dir)
 
 # specify variation parameters
-n_cases = 19
+n_cases = 40
 case_dict = {
     'number': list(range(1, n_cases + 1)),
     'file_variation_pattern': 'Case_',
@@ -40,7 +40,9 @@ case_dict = {
     'variation_parameter': 'split_ratio',
     'value_variation': [0.01, 0.02, 0.03, 0.04, 0.05, 0.1, 0.15, 0.2, 0.25,
                         0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75,
-                        0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99, 1.0]
+                        0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99, 1.0,
+                        0.06, 0.07, 0.08, 0.09, 0.11, 0.12, 0.13, 0.14, 0.16,
+                        0.17, 0.18, 0.19]
 }
 
 # setup and create the model channels
@@ -53,6 +55,7 @@ mfd = pemfc.channel.Channel(model.manifold_dict, fluid)
 split_ratios = []
 zetas_mfd_mfd = []
 zetas_mfd_chl = []
+reynolds_mfd = []
 reynolds_chl = []
 
 # parameter variation loop
@@ -89,9 +92,11 @@ for i in range(n_cases):
     manifold_velocity = \
         manifold_mass_flow / manifold_area / physical_properties.density
     mass_flow_data = np.array([channel_mass_flow])
-    reynolds_chl.append(manifold_velocity * geom.manifold_diameter
+    reynolds_mfd.append(manifold_velocity * geom.manifold_diameter
                         * physical_properties.density
                         / physical_properties.viscosity)
+    reynolds_chl.append(reynolds_number_channel)
+
     # load and process 3D AVL FIRE M data
     cfd_data = cfd_proc.CFDTJunctionProcessor(file_path,
                                               mass_flow_data, output_dir)
@@ -151,34 +156,14 @@ for i in range(n_cases):
 x_array = np.array(split_ratios)
 y_array_1 = np.array(zetas_mfd_mfd)
 y_array_2 = np.array(zetas_mfd_chl)
-y_array_3 = np.array(reynolds_chl)
-xy_array = np.vstack((x_array, y_array_1, y_array_2, y_array_3))
+y_array_3 = np.array(reynolds_mfd)
+y_array_4 = np.array(reynolds_chl)
+xy_array = np.vstack((x_array, y_array_1, y_array_2, y_array_3, y_array_4))
 xy_array = xy_array[:, xy_array[0].argsort()]
 
-fig, ax = plt.subplots()
-ax.plot(xy_array[0], xy_array[1], label='$\zeta$-Manifold-Manifold', marker='.')
-ax.legend()
-ax.set_title('Dividing T-Junction')
-ax.set_xticks(np.arange(0.0, 1.0, 0.1))
-ax.set_xlabel('Discharge Ratio [-]')
-ax.set_ylabel('Resistance Coefficient [-]')
-ax.grid()
-fig.savefig(os.path.join(output_dir, 'dividing_t-junction_resistance_mfd_mfd.png'))
+# save results as ascii file
+np.savetxt(os.path.join(output_dir, file_names.output_main_name + '.txt'),
+           xy_array)
 
-fig, ax = plt.subplots()
-ax.plot(xy_array[0], xy_array[2], label='$\zeta$-Manifold-Branch', marker='.')
-ax.legend()
-ax.set_title('Dividing T-Junction')
-ax.set_xticks(np.arange(0.0, 1.0, 0.1))
-ax.set_xlabel('Discharge Ratio [-]')
-ax.set_ylabel('Resistance Coefficient [-]')
-ax.grid()
-fig.savefig(os.path.join(output_dir, 'dividing_t-junction_resistance_mfd_chl.png'))
-
-fig, ax = plt.subplots()
-ax.plot(xy_array[0], xy_array[3], marker='.')
-ax.set_xticks(np.arange(0.0, 1.0, 0.1))
-ax.set_xlabel('Discharge Ratio [-]')
-ax.set_ylabel('Channel Reynolds Number [-]')
-ax.grid()
-fig.savefig(os.path.join(output_dir, 'channel_reynolds_number.png'))
+# plot results
+import cfd_manifold_analyzer.plot_data

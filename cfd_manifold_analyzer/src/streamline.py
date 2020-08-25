@@ -29,6 +29,7 @@ class Point:
 class Streamline:
     def __init__(self):
         self.points = []
+        self.points_dict = {}
 
     def add_point(self, name, channel=None, idx=None,
                   diameter=None, half_distance=None, density=None,
@@ -76,15 +77,21 @@ class Streamline:
                                       WallFrictionFlowResistance):
                             friction_factor += zeta.value[idx] * channel.d_h \
                                 / channel.dx_node[idx]
-
-        self.points.append(Point(name, diameter, half_distance, density,
-                                 viscosity, velocity, pressure,
-                                 friction_factor))
+        point = Point(name, diameter, half_distance, density, viscosity,
+                      velocity, pressure, friction_factor)
+        self.points.append(point)
         self.points[-1].number = len(self.points) - 1
+        self.points_dict[point.name] = point
+
+    def _select_point(self, point_id):
+        if point_id in self.points_dict.keys():
+            return self.points_dict[point_id]
+        else:
+            return self.points[point_id]
 
     def calculate_zeta(self, point_a, point_b):
-        a = self.points[point_a]
-        b = self.points[point_b]
+        a = self._select_point(point_a)
+        b = self._select_point(point_b)
         dyn_pressure_ratio = \
             b.density / a.density * (b.velocity / a.velocity) ** 2.0
         return 1.0 + (a.pressure - b.pressure) \
@@ -94,8 +101,8 @@ class Streamline:
             - a.half_distance / a.diameter * a.friction_factor
 
     def calculate_pressure_difference(self, point_a, point_b, zeta):
-        a = self.points[point_a]
-        b = self.points[point_b]
+        a = self._select_point(point_a)
+        b = self._select_point(point_b)
         a_dyn_pressure = 0.5 * a.density * a.velocity ** 2.0
         b_dyn_pressure = 0.5 * b.density * b.velocity ** 2.0
         return a_dyn_pressure - b_dyn_pressure \

@@ -15,7 +15,7 @@ dir_name = r'C:\Users\feierabend\PycharmProjects\CFDManifoldAnalyzer\data'
 # avl_fire_file_3d = \
 #     'Plane_Cut_0002_Stack_Ratio2_Re3000_p05_Long_IT_2517_Flow_RelativePressure_Pa.dat'
 avl_fire_file_3d = \
-    r'FIRE_M_1\FIRE_M_1.split_ratio_variation.Case_1\results\values_in_All_at_1093_proc_1.dat'
+    r'FIRE_M_1\FIRE_M_1.split_ratio_variation.Case_1\results\values_in_All_at_872_proc_1.dat'
 # 2D results file name
 # Each data row includes all 2D results for the respective iteration; first two
 # rows are headers with result name and dimension in first and second row,
@@ -27,6 +27,7 @@ total_mass_flow_name = 'Flow:Total Inlet Massflow'
 
 # Output names
 output_dir = 'Case_1'
+output_main_name = 'combining_t-junction'
 mass_flow_data_file = 'mass_flows'
 channel_data_file = 'channel_data'
 manifold_data_file = 'manifold_data'
