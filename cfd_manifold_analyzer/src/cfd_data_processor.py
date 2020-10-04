@@ -309,18 +309,19 @@ class ManifoldCFDDataChannel(LinearCFDDataChannel):
 
 class CFDMassFlowProcessor(OutputObject, ABC):
 
-    def __new__(cls, data, output_dir, name=None):
+    def __new__(cls, data, output_dir, name=None, **kwargs):
 
-        if os.path.isfile(data):
-            return super(CFDMassFlowProcessor,
-                         cls).__new__(CFDMassFlowFileProcessor)
-        elif isinstance(data, np.ndarray):
+        if isinstance(data, (list, tuple, np.ndarray)):
             return super(CFDMassFlowProcessor,
                          cls).__new__(CFDMassFlowArrayProcessor)
+        elif os.path.isfile(data):
+            return super(CFDMassFlowProcessor,
+                         cls).__new__(CFDMassFlowFileProcessor)
+
         else:
             raise NotImplementedError
 
-    def __init__(self, data, output_dir, name=None):
+    def __init__(self, data, output_dir, name=None, **kwargs):
         super().__init__(name)
         self.output_dir = output_dir
         self.n_channels = None
@@ -346,11 +347,13 @@ class CFDMassFlowProcessor(OutputObject, ABC):
 
 
 class CFDMassFlowFileProcessor(CFDMassFlowProcessor):
-    def __init__(self, data, output_dir, name=None):
+    def __init__(self, data, output_dir, name=None, **kwargs):
         super().__init__(output_dir, name)
         self.file_path = data
-        self.mass_flow_name = file_names.mass_flow_name
-        self.total_mass_flow_name = file_names.total_mass_flow_name
+        self.mass_flow_name = \
+            kwargs.pop('flow_key', file_names.mass_flow_name)
+        self.total_mass_flow_name = \
+            kwargs.pop('total_flow_key', file_names.total_mass_flow_name)
 
     def load_2d_data(self):
         return pd.read_csv(self.file_path, sep='\t', header=[0, 1])
@@ -369,9 +372,9 @@ class CFDMassFlowFileProcessor(CFDMassFlowProcessor):
 
 
 class CFDMassFlowArrayProcessor(CFDMassFlowProcessor):
-    def __init__(self, data, output_dir, name=None):
+    def __init__(self, data, output_dir, name=None, **kwargs):
         super().__init__(output_dir, name)
-        self.mass_flows = data
+        self.mass_flows = np.asarray(data)
 
     def process(self, total_mass_flow=None):
         self.n_channels = len(self.mass_flows)

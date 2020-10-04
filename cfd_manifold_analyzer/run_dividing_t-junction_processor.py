@@ -21,7 +21,7 @@ matplotlib.use('TkAgg')
 
 # specify boundary conditions
 reynolds_number = 2300.0
-reynolds_number_channel = 200.0
+reynolds_number_channel = 40.0
 split_ratio = None
 manifold_area = geom.manifold_diameter ** 2.0 * np.pi * 0.25
 channel_area = geom.channel_diameter ** 2.0 * np.pi * 0.25
